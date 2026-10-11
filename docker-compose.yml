@@ -1,0 +1,10 @@
+# Opcional: roda o backend em container, como no Render.
+# O banco é o PostgreSQL do Supabase; as credenciais vêm de backend/.env.
+services:
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      PORT: 8080
+    ports:
+      - "8080:8080"

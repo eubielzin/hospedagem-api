@@ -1,0 +1,16 @@
+### Segredos ###
+.env
+.env.*
+!.env.example
+
+### Backend ###
+backend/target/
+.mvn/wrapper/maven-wrapper.jar
+
+### IDEs / SO ###
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.DS_Store
