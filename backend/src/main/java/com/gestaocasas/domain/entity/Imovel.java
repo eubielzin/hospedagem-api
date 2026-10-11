@@ -3,6 +3,7 @@ package com.gestaocasas.domain.entity;
 import com.gestaocasas.domain.enums.StatusImovel;
 import jakarta.persistence.*;
 import lombok.Getter;
+import org.hibernate.annotations.SQLRestriction;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -82,7 +83,9 @@ public class Imovel {
     @Column(name = "comodidade", nullable = false, length = 80)
     private Set<String> comodidades = new LinkedHashSet<>();
 
+    // Fotos com exclusão pendente no Storage não fazem mais parte do imóvel.
     @OneToMany(mappedBy = "imovel")
+    @SQLRestriction("exclusao_pendente_em IS NULL")
     @OrderBy("ordem ASC, criadoEm ASC")
     private List<ImovelFoto> fotos = new ArrayList<>();
 

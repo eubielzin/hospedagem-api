@@ -1,8 +1,6 @@
 package com.gestaocasas.presentation.controller;
 
 import com.gestaocasas.application.dto.ApiResponse;
-import com.gestaocasas.application.dto.ImovelFotoRequest;
-import com.gestaocasas.application.dto.ImovelFotoResponse;
 import com.gestaocasas.application.dto.ImovelRequest;
 import com.gestaocasas.application.dto.ImovelResponse;
 import com.gestaocasas.application.dto.ImovelResumoResponse;
@@ -31,20 +29,15 @@ public class ImovelController {
     private final GetImovelByIdUseCase getImovelById;
     private final UpdateImovelUseCase updateImovel;
     private final InativarImovelUseCase inativarImovel;
-    private final AddImovelFotoUseCase addImovelFoto;
-    private final RemoveImovelFotoUseCase removeImovelFoto;
 
     public ImovelController(CreateImovelUseCase createImovel, ListImoveisUseCase listImoveis,
                             GetImovelByIdUseCase getImovelById, UpdateImovelUseCase updateImovel,
-                            InativarImovelUseCase inativarImovel, AddImovelFotoUseCase addImovelFoto,
-                            RemoveImovelFotoUseCase removeImovelFoto) {
+                            InativarImovelUseCase inativarImovel) {
         this.createImovel = createImovel;
         this.listImoveis = listImoveis;
         this.getImovelById = getImovelById;
         this.updateImovel = updateImovel;
         this.inativarImovel = inativarImovel;
-        this.addImovelFoto = addImovelFoto;
-        this.removeImovelFoto = removeImovelFoto;
     }
 
     @PostMapping
@@ -76,18 +69,5 @@ public class ImovelController {
     @PatchMapping("/{id}/inativar")
     public ResponseEntity<ApiResponse<ImovelResponse>> inativar(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok("Imóvel inativado com sucesso", inativarImovel.execute(id)));
-    }
-
-    @PostMapping("/{id}/fotos")
-    public ResponseEntity<ApiResponse<ImovelFotoResponse>> addFoto(@PathVariable UUID id,
-                                                                   @Valid @RequestBody ImovelFotoRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Foto cadastrada com sucesso", addImovelFoto.execute(id, request)));
-    }
-
-    @DeleteMapping("/{id}/fotos/{fotoId}")
-    public ResponseEntity<Void> removeFoto(@PathVariable UUID id, @PathVariable UUID fotoId) {
-        removeImovelFoto.execute(id, fotoId);
-        return ResponseEntity.noContent().build();
     }
 }

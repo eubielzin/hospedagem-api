@@ -72,10 +72,6 @@ class ImovelControllerTest {
     private UpdateImovelUseCase updateImovel;
     @MockitoBean
     private InativarImovelUseCase inativarImovel;
-    @MockitoBean
-    private AddImovelFotoUseCase addImovelFoto;
-    @MockitoBean
-    private RemoveImovelFotoUseCase removeImovelFoto;
 
     private static ImovelResponse response(UUID id) {
         return new ImovelResponse(id, "Casa da Praia", null, "Rua das Conchas", null, null, null, "Ubatuba", "SP",
@@ -183,15 +179,6 @@ class ImovelControllerTest {
     @Test
     void rejeitaFiltroDeStatusInvalido() throws Exception {
         mockMvc.perform(get("/imoveis").param("status", "QUALQUER")).andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void rejeitaFotoComUrlInvalida() throws Exception {
-        mockMvc.perform(post("/imoveis/{id}/fotos", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"url\": \"javascript:alert(1)\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[*].field", hasItem("url")));
-        verifyNoInteractions(addImovelFoto);
     }
 
     @Test

@@ -1,7 +1,9 @@
 package com.gestaocasas.infrastructure.config;
 
 import com.gestaocasas.application.dto.ApiError;
+import com.gestaocasas.domain.exception.ArquivoInvalidoException;
 import com.gestaocasas.domain.exception.ResourceNotFoundException;
+import com.gestaocasas.domain.exception.StorageException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -14,7 +16,10 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.util.List;
 
@@ -50,6 +55,45 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleInvalidSort(PropertyReferenceException ex) {
         return ResponseEntity.badRequest()
                 .body(ApiError.of("Campo de ordenação inválido: '" + ex.getPropertyName() + "'"));
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiError> handleParameterValidation(HandlerMethodValidationException ex) {
+        List<ApiError.FieldError> errors = ex.getParameterValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .map(error -> new ApiError.FieldError(result.getMethodParameter().getParameterName(),
+                                error.getDefaultMessage())))
+                .toList();
+        return ResponseEntity.badRequest().body(ApiError.of("Dados inválidos", errors));
+    }
+
+    @ExceptionHandler(ArquivoInvalidoException.class)
+    public ResponseEntity<ApiError> handleArquivoInvalido(ArquivoInvalidoException ex) {
+        HttpStatus status = switch (ex.getMotivo()) {
+            case MUITO_GRANDE -> HttpStatus.CONTENT_TOO_LARGE;
+            case TIPO_NAO_SUPORTADO -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+            case CONTEUDO_INVALIDO -> HttpStatus.BAD_REQUEST;
+        };
+        return ResponseEntity.status(status).body(ApiError.of(ex.getMessage()));
+    }
+
+    // Limite do multipart (spring.servlet.multipart.*), aplicado antes de o arquivo chegar ao caso de uso.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(ApiError.of("Arquivo excede o tamanho máximo permitido"));
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiError> handleMultipart(MultipartException ex) {
+        return ResponseEntity.badRequest().body(ApiError.of("Envio de arquivo inválido ou malformado"));
+    }
+
+    // Os detalhes da falha ficam no log do adaptador; a resposta não expõe nada do provedor.
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<ApiError> handleStorage(StorageException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ApiError.of("Falha ao comunicar com o armazenamento de imagens. Tente novamente."));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

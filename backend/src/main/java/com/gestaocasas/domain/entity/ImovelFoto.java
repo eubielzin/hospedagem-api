@@ -1,5 +1,6 @@
 package com.gestaocasas.domain.entity;
 
+import com.gestaocasas.domain.enums.StorageProvider;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -30,6 +31,21 @@ public class ImovelFoto {
 
     @Column(name = "ordem", nullable = false)
     private Integer ordem;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "storage_provider", nullable = false, length = 20)
+    private StorageProvider storageProvider = StorageProvider.EXTERNA;
+
+    // Caminho do objeto no bucket ({imovelId}/{imagemId}.{extensao}); nulo para fotos cadastradas por URL.
+    @Column(name = "storage_path", length = 500)
+    private String storagePath;
+
+    @Column(name = "principal", nullable = false)
+    private boolean principal;
+
+    // Exclusão pedida, arquivo ainda não removido do Storage. A foto deixa de aparecer nas consultas.
+    @Column(name = "exclusao_pendente_em")
+    private Instant exclusaoPendenteEm;
 
     @Column(name = "criado_em", nullable = false, updatable = false)
     private Instant criadoEm;

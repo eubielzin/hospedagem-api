@@ -1,13 +1,18 @@
+
 FROM maven:3.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
-COPY pom.xml ./pom.xml
+COPY pom.xml ./
 RUN mvn dependency:go-offline -B
 
 COPY src ./src
-RUN mvn clean package -DskipTests -B
-
+RUN mvn clean package -DskipTests -B \
+    && find target -maxdepth 1 -name "*.jar" \
+       ! -name "*original*" \
+       ! -name "*sources*" \
+       ! -name "*javadoc*" \
+       -exec cp {} /app/app.jar \;
 
 FROM eclipse-temurin:21-jre
 
@@ -18,15 +23,14 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=build --chown=app:app /app/target/*SNAPSHOT.jar app.jar
+COPY --from=build --chown=app:app /app/app.jar app.jar
 
 USER app
 
-ENV PORT=8080 \
-    SPRING_PROFILES_ACTIVE=prod \
-    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
+ENV PORT=10000
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65.0"
 
-EXPOSE 8080
+EXPOSE 10000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD curl -fsS "http://localhost:${PORT}/actuator/health" || exit 1

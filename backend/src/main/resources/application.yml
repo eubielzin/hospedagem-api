@@ -7,6 +7,20 @@ server:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  fotos:
+    # Upload, exclusão e foto principal usam a chave secreta do Storage. Sem autenticação na API,
+    # ficam bloqueados (403) a menos que a variável seja true. Não habilite em ambiente público.
+    escrita-habilitada: ${FOTOS_ESCRITA_HABILITADA:false}
+    tamanho-maximo: 5MB
+    dimensao-maxima: 8000
+    pixels-maximos: 40000000
+  storage:
+    supabase:
+      url: ${SUPABASE_URL:}
+      bucket: ${SUPABASE_STORAGE_BUCKET:imoveis}
+      secret-key: ${SUPABASE_SECRET_KEY:}
+      connect-timeout: 5s
+      read-timeout: 20s
 
 spring:
   application:
@@ -19,6 +33,11 @@ spring:
     import:
       - optional:file:.env[.properties]
       - optional:file:backend/.env[.properties]
+
+  servlet:
+    multipart:
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:5MB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:6MB}
 
   datasource:
     url: ${DATABASE_URL}

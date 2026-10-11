@@ -7,7 +7,6 @@ import com.gestaocasas.application.mapper.ImovelMapperImpl;
 import com.gestaocasas.domain.entity.Imovel;
 import com.gestaocasas.domain.entity.ImovelFoto;
 import com.gestaocasas.domain.enums.StatusImovel;
-import com.gestaocasas.domain.exception.ImovelFotoNotFoundException;
 import com.gestaocasas.domain.exception.ImovelNotFoundException;
 import com.gestaocasas.domain.repository.ImovelFotoRepository;
 import com.gestaocasas.domain.repository.ImovelRepository;
@@ -80,26 +79,5 @@ class ImovelFotoUseCasesTest {
                 .execute(imovelId, new ImovelFotoRequest("https://exemplo.com/a.jpg", null, null)))
                 .isInstanceOf(ImovelNotFoundException.class);
         verify(fotoRepository, never()).save(any());
-    }
-
-    @Test
-    void removeFotoDoImovel() {
-        UUID fotoId = UUID.randomUUID();
-        ImovelFoto foto = new ImovelFoto();
-        when(fotoRepository.findByIdAndImovelId(fotoId, imovelId)).thenReturn(Optional.of(foto));
-
-        new RemoveImovelFotoUseCase(fotoRepository).execute(imovelId, fotoId);
-
-        verify(fotoRepository).delete(foto);
-    }
-
-    @Test
-    void naoRemoveFotoDeOutroImovel() {
-        UUID fotoId = UUID.randomUUID();
-        when(fotoRepository.findByIdAndImovelId(fotoId, imovelId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> new RemoveImovelFotoUseCase(fotoRepository).execute(imovelId, fotoId))
-                .isInstanceOf(ImovelFotoNotFoundException.class);
-        verify(fotoRepository, never()).delete(any());
     }
 }

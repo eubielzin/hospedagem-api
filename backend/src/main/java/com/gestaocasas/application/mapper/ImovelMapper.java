@@ -41,6 +41,10 @@ public interface ImovelMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "imovel", ignore = true)
     @Mapping(target = "criadoEm", ignore = true)
+    @Mapping(target = "storageProvider", ignore = true)
+    @Mapping(target = "storagePath", ignore = true)
+    @Mapping(target = "principal", ignore = true)
+    @Mapping(target = "exclusaoPendenteEm", ignore = true)
     ImovelFoto toEntity(ImovelFotoRequest request);
 
     ImovelFotoResponse toResponse(ImovelFoto foto);
