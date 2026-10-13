@@ -25,7 +25,7 @@ import java.nio.charset.StandardCharsets;
  * bloqueadas, a menos que FOTOS_ESCRITA_HABILITADA=true (uso local). Quando o módulo de
  * autenticação entrar, essa chave dá lugar a regras de acesso por usuário, definidas aqui.
  * <p>
- * As rotas administrativas (produtos e, depois, estoque e PDV) exigem usuário autenticado. Como
+ * As rotas administrativas (produtos, estoque e, depois, PDV) exigem usuário autenticado. Como
  * ainda não existe login, respondem 403 em qualquer ambiente que não seja o perfil "local".
  * A abertura no perfil local é provisória e sai junto com a chegada da autenticação.
  */
@@ -36,7 +36,13 @@ public class SecurityConfig {
     private static final String ESCRITA_DESABILITADA = """
             {"success":false,"message":"Operação desabilitada neste ambiente: a API ainda não possui autenticação"}""";
 
-    private static final String[] ROTAS_ADMINISTRATIVAS = {"/produtos", "/produtos/**"};
+    // Inclui rotas de fases ainda não implementadas (transferências e PDV): já nascem protegidas.
+    private static final String[] ROTAS_ADMINISTRATIVAS = {
+            "/produtos", "/produtos/**",
+            "/imoveis/*/estoque", "/imoveis/*/estoque/**",
+            "/estoque/**",
+            "/pdv/**"
+    };
 
     private final CorsConfigurationSource corsConfigurationSource;
     private final boolean escritaDeFotosHabilitada;

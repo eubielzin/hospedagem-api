@@ -3,6 +3,7 @@ package com.gestaocasas.infrastructure.config;
 import com.gestaocasas.application.dto.ApiError;
 import com.gestaocasas.domain.exception.ArquivoInvalidoException;
 import com.gestaocasas.domain.exception.ConflitoException;
+import com.gestaocasas.domain.exception.RegraDeNegocioException;
 import com.gestaocasas.domain.exception.ResourceNotFoundException;
 import com.gestaocasas.domain.exception.StorageException;
 import org.slf4j.Logger;
@@ -37,6 +38,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConflitoException.class)
     public ResponseEntity<ApiError> handleConflito(ConflitoException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiError.of(ex.getMessage()));
+    }
+
+    @ExceptionHandler(RegraDeNegocioException.class)
+    public ResponseEntity<ApiError> handleRegraDeNegocio(RegraDeNegocioException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(ApiError.of(ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
