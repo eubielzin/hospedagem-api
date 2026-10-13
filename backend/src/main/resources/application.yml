@@ -14,6 +14,10 @@ app:
     tamanho-maximo: 5MB
     dimensao-maxima: 8000
     pixels-maximos: 40000000
+  produtos:
+    busca:
+      # Teto de resultados por consulta da busca dinâmica; pedidos acima disto são reduzidos a ele.
+      limite-maximo: ${PRODUTOS_BUSCA_LIMITE_MAXIMO:50}
   storage:
     supabase:
       url: ${SUPABASE_URL:}

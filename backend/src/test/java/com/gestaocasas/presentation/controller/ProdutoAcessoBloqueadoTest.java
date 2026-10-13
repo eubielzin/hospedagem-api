@@ -42,6 +42,8 @@ class ProdutoAcessoBloqueadoTest {
     private UpdateProdutoUseCase updateProduto;
     @MockitoBean
     private InativarProdutoUseCase inativarProduto;
+    @MockitoBean
+    private BuscarProdutosUseCase buscarProdutos;
 
     @Test
     void todasAsRotasDeProdutosRespondem403() throws Exception {
@@ -60,6 +62,7 @@ class ProdutoAcessoBloqueadoTest {
         mockMvc.perform(patch("/produtos/{id}/inativar", id)).andExpect(status().isForbidden());
         mockMvc.perform(get("/produtos/buscar").param("termo", "coca")).andExpect(status().isForbidden());
 
-        verifyNoInteractions(createProduto, listProdutos, getProdutoById, updateProduto, inativarProduto);
+        verifyNoInteractions(createProduto, listProdutos, getProdutoById, updateProduto, inativarProduto,
+                buscarProdutos);
     }
 }

@@ -1,6 +1,7 @@
 package com.gestaocasas.presentation.controller;
 
 import com.gestaocasas.application.dto.PageResponse;
+import com.gestaocasas.application.dto.ProdutoBuscaResponse;
 import com.gestaocasas.application.dto.ProdutoResponse;
 import com.gestaocasas.application.usecase.produto.*;
 import com.gestaocasas.domain.enums.CategoriaProduto;
@@ -28,6 +29,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -68,6 +71,8 @@ class ProdutoControllerTest {
     private UpdateProdutoUseCase updateProduto;
     @MockitoBean
     private InativarProdutoUseCase inativarProduto;
+    @MockitoBean
+    private BuscarProdutosUseCase buscarProdutos;
 
     private static ProdutoResponse response(UUID id, boolean ativo) {
         return new ProdutoResponse(id, "COCA350", "7894900010015", "Coca-Cola Lata 350ml", null,
@@ -185,5 +190,55 @@ class ProdutoControllerTest {
     @Test
     void naoExisteExclusaoFisicaDeProduto() throws Exception {
         mockMvc.perform(delete("/produtos/{id}", UUID.randomUUID())).andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void buscaDinamicaNaoEhConfundidaComAConsultaPorId() throws Exception {
+        UUID imovelId = UUID.randomUUID();
+        UUID produtoId = UUID.randomUUID();
+        when(buscarProdutos.execute(any(), any(), anyBoolean(), anyInt())).thenReturn(List.of(
+                new ProdutoBuscaResponse(produtoId, "COCA350", "7894900010015", "Coca-Cola Lata 350ml",
+                        CategoriaProduto.CONSUMO, "UN", new BigDecimal("6.00"), true, true, 20, false)));
+
+        mockMvc.perform(get("/produtos/buscar").param("termo", "coca").param("imovelId", imovelId.toString())
+                        .param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Produtos encontrados"))
+                .andExpect(jsonPath("$.data[0].id").value(produtoId.toString()))
+                .andExpect(jsonPath("$.data[0].nome").value("Coca-Cola Lata 350ml"))
+                .andExpect(jsonPath("$.data[0].precoVenda").value(6.00))
+                .andExpect(jsonPath("$.data[0].quantidadeDisponivel").value(20))
+                .andExpect(jsonPath("$.data[0].controlaEstoque").value(true))
+                .andExpect(jsonPath("$.data[0].ativo").value(true))
+                .andExpect(jsonPath("$.data[0].semEstoque").value(false))
+                .andExpect(jsonPath("$.data[0].precoCusto").doesNotExist());
+        verify(buscarProdutos).execute("coca", imovelId, true, 5);
+        verifyNoInteractions(getProdutoById);
+    }
+
+    @Test
+    void buscaAceitaUmCaractereEUsaPadroes() throws Exception {
+        when(buscarProdutos.execute(any(), any(), anyBoolean(), anyInt())).thenReturn(List.of());
+
+        mockMvc.perform(get("/produtos/buscar").param("termo", "c").param("somenteAtivos", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+        verify(buscarProdutos).execute("c", null, false, 10);
+    }
+
+    @Test
+    void buscaRejeitaParametrosInvalidos() throws Exception {
+        mockMvc.perform(get("/produtos/buscar")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/produtos/buscar").param("termo", "  "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("termo"));
+        mockMvc.perform(get("/produtos/buscar").param("termo", "x".repeat(101))).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/produtos/buscar").param("termo", "c").param("limit", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("limit"));
+        mockMvc.perform(get("/produtos/buscar").param("termo", "c").param("imovelId", "abc"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(buscarProdutos);
     }
 }
