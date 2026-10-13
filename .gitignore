@@ -1,16 +1,48 @@
+
+
+
+
+
+
+
 ### Segredos ###
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.jks
 
-### Backend ###
-backend/target/
+### Backend (Maven / Java) ###
+target/
 .mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+HELP.md
 
-### IDEs / SO ###
+### IDEs ###
 .idea/
 *.iml
 *.iws
 *.ipr
 .vscode/
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache/
+nbproject/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+### Sistema operacional ###
 .DS_Store
+Thumbs.db
+*.swp
+*~
