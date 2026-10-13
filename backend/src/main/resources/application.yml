@@ -34,6 +34,11 @@ spring:
       - optional:file:.env[.properties]
       - optional:file:backend/.env[.properties]
 
+  jackson:
+    deserialization:
+      # Sem isto, 1.5 em um campo inteiro (quantidade, quartos) seria truncado para 1 em silêncio.
+      accept-float-as-int: false
+
   servlet:
     multipart:
       max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:5MB}
