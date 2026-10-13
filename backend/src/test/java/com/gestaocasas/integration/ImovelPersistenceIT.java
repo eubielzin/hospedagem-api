@@ -18,9 +18,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -39,21 +36,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Sobe a aplicação inteira contra um PostgreSQL real: valida a migração Flyway, o mapeamento
- * JPA (ddl-auto=validate) e o comportamento das constraints. Exige Docker.
+ * JPA (ddl-auto=validate) e o comportamento das constraints. Exige Docker ou IT_DATABASE_URL
+ * (veja {@link BancoDeTeste}).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
 class ImovelPersistenceIT {
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("DATABASE_URL", POSTGRES::getJdbcUrl);
-        registry.add("DATABASE_USERNAME", POSTGRES::getUsername);
-        registry.add("DATABASE_PASSWORD", POSTGRES::getPassword);
+        BancoDeTeste.registrar(registry);
         registry.add("app.fotos.escrita-habilitada", () -> "true");
     }
 
