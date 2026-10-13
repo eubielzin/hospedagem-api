@@ -5,6 +5,7 @@ import com.gestaocasas.ProdutoFixtures;
 import com.gestaocasas.application.dto.TransferenciaEstoqueRequest;
 import com.gestaocasas.application.dto.TransferenciaEstoqueResponse;
 import com.gestaocasas.application.mapper.EstoqueMapper;
+import com.gestaocasas.application.service.Idempotencia;
 import com.gestaocasas.application.service.MovimentadorEstoque;
 import com.gestaocasas.domain.entity.MovimentacaoEstoque;
 import com.gestaocasas.domain.enums.StatusImovel;
@@ -15,6 +16,7 @@ import com.gestaocasas.domain.exception.ImovelNotFoundException;
 import com.gestaocasas.domain.exception.ProdutoNotFoundException;
 import com.gestaocasas.domain.exception.RegraDeNegocioException;
 import com.gestaocasas.domain.repository.ImovelRepository;
+import com.gestaocasas.domain.repository.MovimentacaoEstoqueRepository;
 import com.gestaocasas.domain.repository.ProdutoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +47,11 @@ class TransferirEstoqueUseCaseTest {
     @Mock
     private ProdutoRepository produtoRepository;
     @Mock
+    private MovimentacaoEstoqueRepository movimentacaoRepository;
+    @Mock
     private MovimentadorEstoque movimentador;
+    @Mock
+    private Idempotencia idempotencia;
 
     private TransferirEstoqueUseCase useCase;
 
@@ -55,7 +61,8 @@ class TransferirEstoqueUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new TransferirEstoqueUseCase(imovelRepository, produtoRepository, movimentador, new EstoqueMapper());
+        useCase = new TransferirEstoqueUseCase(imovelRepository, produtoRepository, movimentacaoRepository,
+                movimentador, idempotencia, new EstoqueMapper());
         lenient().when(imovelRepository.existsById(any())).thenReturn(true);
         lenient().when(produtoRepository.existsById(produtoId)).thenReturn(true);
         lenient().when(movimentador.movimentar(any(), any(), any(), anyInt(), any(), any(), any()))
@@ -77,7 +84,8 @@ class TransferirEstoqueUseCaseTest {
 
     @Test
     void geraSaidaNaOrigemEEntradaNoDestinoComAMesmaReferencia() {
-        TransferenciaEstoqueResponse response = useCase.execute(request(menor, maior));
+        TransferenciaEstoqueResponse response = useCase.execute(request(menor, maior), null).valor();
+        verifyNoInteractions(idempotencia);
 
         assertThat(response.saida().imovelId()).isEqualTo(menor);
         assertThat(response.saida().tipo()).isEqualTo(TipoMovimentacao.TRANSFERENCIA_SAIDA);
@@ -93,7 +101,7 @@ class TransferirEstoqueUseCaseTest {
 
     @Test
     void bloqueiaOsSaldosSempreNaMesmaOrdemEBaixaAOrigemPrimeiro() {
-        useCase.execute(request(maior, menor));
+        useCase.execute(request(maior, menor), null);
 
         InOrder ordem = inOrder(movimentador);
         ordem.verify(movimentador).travar(menor, produtoId);
@@ -109,14 +117,14 @@ class TransferirEstoqueUseCaseTest {
         when(movimentador.movimentar(eq(menor), any(), eq(TipoMovimentacao.TRANSFERENCIA_SAIDA), anyInt(), any(),
                 any(), any())).thenThrow(new EstoqueInsuficienteException("Coca", 3, 7));
 
-        assertThatThrownBy(() -> useCase.execute(request(menor, maior)))
+        assertThatThrownBy(() -> useCase.execute(request(menor, maior), null))
                 .isInstanceOf(EstoqueInsuficienteException.class);
         verify(movimentador, never()).movimentar(eq(maior), any(), any(), anyInt(), any(), any(), any());
     }
 
     @Test
     void recusaOrigemIgualAoDestino() {
-        assertThatThrownBy(() -> useCase.execute(request(menor, menor)))
+        assertThatThrownBy(() -> useCase.execute(request(menor, menor), null))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("imóveis diferentes");
         verifyNoInteractions(movimentador);
@@ -125,13 +133,13 @@ class TransferirEstoqueUseCaseTest {
     @Test
     void recusaImovelOuProdutoInexistenteAntesDeBloquearQualquerSaldo() {
         when(imovelRepository.existsById(maior)).thenReturn(false);
-        assertThatThrownBy(() -> useCase.execute(request(menor, maior)))
+        assertThatThrownBy(() -> useCase.execute(request(menor, maior), null))
                 .isInstanceOf(ImovelNotFoundException.class)
                 .hasMessageContaining(maior.toString());
 
         when(imovelRepository.existsById(maior)).thenReturn(true);
         when(produtoRepository.existsById(produtoId)).thenReturn(false);
-        assertThatThrownBy(() -> useCase.execute(request(menor, maior)))
+        assertThatThrownBy(() -> useCase.execute(request(menor, maior), null))
                 .isInstanceOf(ProdutoNotFoundException.class);
         verifyNoInteractions(movimentador);
     }

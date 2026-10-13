@@ -14,8 +14,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.method.ParameterErrors;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -53,6 +55,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiError.of("Dados inválidos", errors));
     }
 
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiError> handleMissingHeader(MissingRequestHeaderException ex) {
+        return ResponseEntity.badRequest().body(ApiError.of("Cabeçalho obrigatório ausente: " + ex.getHeaderName()));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleUnreadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest().body(ApiError.of("Corpo da requisição inválido ou malformado"));
@@ -71,10 +78,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ApiError> handleParameterValidation(HandlerMethodValidationException ex) {
+        // Corpo validado com @Valid: os erros são dos campos do corpo. Demais parâmetros (query,
+        // cabeçalho): o erro é do próprio parâmetro.
         List<ApiError.FieldError> errors = ex.getParameterValidationResults().stream()
-                .flatMap(result -> result.getResolvableErrors().stream()
-                        .map(error -> new ApiError.FieldError(result.getMethodParameter().getParameterName(),
-                                error.getDefaultMessage())))
+                .flatMap(result -> result instanceof ParameterErrors corpo
+                        ? corpo.getFieldErrors().stream()
+                                .map(error -> new ApiError.FieldError(error.getField(), error.getDefaultMessage()))
+                        : result.getResolvableErrors().stream()
+                                .map(error -> new ApiError.FieldError(
+                                        result.getMethodParameter().getParameterName(), error.getDefaultMessage())))
                 .toList();
         return ResponseEntity.badRequest().body(ApiError.of("Dados inválidos", errors));
     }

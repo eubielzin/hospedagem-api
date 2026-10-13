@@ -18,7 +18,8 @@ public class CorsConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(allowedOrigins.stream().map(String::trim).filter(o -> !o.isEmpty()).toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization"));
+        config.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization", "Idempotency-Key"));
+        config.setExposedHeaders(List.of("Idempotent-Replay"));
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

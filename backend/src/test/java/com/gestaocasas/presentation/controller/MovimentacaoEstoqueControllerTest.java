@@ -3,6 +3,7 @@ package com.gestaocasas.presentation.controller;
 import com.gestaocasas.application.dto.AjusteEstoqueRequest;
 import com.gestaocasas.application.dto.MovimentacaoEstoqueResponse;
 import com.gestaocasas.application.dto.PageResponse;
+import com.gestaocasas.application.dto.ResultadoIdempotente;
 import com.gestaocasas.application.dto.TransferenciaEstoqueResponse;
 import com.gestaocasas.application.usecase.estoque.ListarMovimentacoesEstoqueUseCase;
 import com.gestaocasas.application.usecase.estoque.RegistrarAjusteEstoqueUseCase;
@@ -37,6 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -70,8 +72,8 @@ class MovimentacaoEstoqueControllerTest {
 
     @Test
     void registraEntrada() throws Exception {
-        when(registrarEntrada.execute(eq(imovelId), any()))
-                .thenReturn(movimentacao(imovelId, TipoMovimentacao.ENTRADA, 0, 24, null));
+        when(registrarEntrada.execute(eq(imovelId), any(), any()))
+                .thenReturn(ResultadoIdempotente.novo(movimentacao(imovelId, TipoMovimentacao.ENTRADA, 0, 24, null)));
 
         mockMvc.perform(post("/imoveis/{id}/estoque/entradas", imovelId).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"produtoId\": \"%s\", \"quantidade\": 24}".formatted(produtoId)))
@@ -98,8 +100,8 @@ class MovimentacaoEstoqueControllerTest {
 
     @Test
     void registraPerdaPeloEndpointDeAjustes() throws Exception {
-        when(registrarAjuste.execute(eq(imovelId), any()))
-                .thenReturn(movimentacao(imovelId, TipoMovimentacao.PERDA, 10, 8, null));
+        when(registrarAjuste.execute(eq(imovelId), any(), any()))
+                .thenReturn(ResultadoIdempotente.novo(movimentacao(imovelId, TipoMovimentacao.PERDA, 10, 8, null)));
 
         mockMvc.perform(post("/imoveis/{id}/estoque/ajustes", imovelId).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"produtoId\": \"%s\", \"tipo\": \"PERDA\", \"quantidade\": 2, \"motivo\": \"Vencido\"}"
@@ -109,7 +111,7 @@ class MovimentacaoEstoqueControllerTest {
                 .andExpect(jsonPath("$.data.saldoPosterior").value(8));
 
         ArgumentCaptor<AjusteEstoqueRequest> request = ArgumentCaptor.forClass(AjusteEstoqueRequest.class);
-        verify(registrarAjuste).execute(eq(imovelId), request.capture());
+        verify(registrarAjuste).execute(eq(imovelId), request.capture(), eq(null));
         assertThat(request.getValue().tipo()).isEqualTo(TipoAjusteEstoque.PERDA);
         assertThat(request.getValue().motivo()).isEqualTo("Vencido");
     }
@@ -133,7 +135,7 @@ class MovimentacaoEstoqueControllerTest {
 
     @Test
     void estoqueInsuficienteResponde422ComOSaldoDisponivel() throws Exception {
-        when(registrarAjuste.execute(any(), any()))
+        when(registrarAjuste.execute(any(), any(), any()))
                 .thenThrow(new EstoqueInsuficienteException("Coca-Cola Lata 350ml", 3, 5));
 
         mockMvc.perform(post("/imoveis/{id}/estoque/ajustes", imovelId).contentType(MediaType.APPLICATION_JSON)
@@ -149,9 +151,10 @@ class MovimentacaoEstoqueControllerTest {
     void transfereEntreImoveis() throws Exception {
         UUID destino = UUID.randomUUID();
         UUID transferencia = UUID.randomUUID();
-        when(transferirEstoque.execute(any())).thenReturn(new TransferenciaEstoqueResponse(transferencia,
-                movimentacao(imovelId, TipoMovimentacao.TRANSFERENCIA_SAIDA, 20, 15, transferencia),
-                movimentacao(destino, TipoMovimentacao.TRANSFERENCIA_ENTRADA, 8, 13, transferencia)));
+        when(transferirEstoque.execute(any(), any())).thenReturn(ResultadoIdempotente.novo(
+                new TransferenciaEstoqueResponse(transferencia,
+                        movimentacao(imovelId, TipoMovimentacao.TRANSFERENCIA_SAIDA, 20, 15, transferencia),
+                        movimentacao(destino, TipoMovimentacao.TRANSFERENCIA_ENTRADA, 8, 13, transferencia))));
 
         mockMvc.perform(post("/estoque/transferencias").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"imovelOrigemId\": \"%s\", \"imovelDestinoId\": \"%s\", \"produtoId\": \"%s\", \"quantidade\": 5}"
@@ -201,5 +204,23 @@ class MovimentacaoEstoqueControllerTest {
                 .andExpect(status().isNotFound());
         mockMvc.perform(delete("/imoveis/{id}/estoque/movimentacoes", imovelId))
                 .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void repassaAChaveDeIdempotenciaESinalizaRepeticao() throws Exception {
+        when(registrarEntrada.execute(eq(imovelId), any(), eq("entrada-2026-0001")))
+                .thenReturn(ResultadoIdempotente.repetido(movimentacao(imovelId, TipoMovimentacao.ENTRADA, 0, 24, null)));
+
+        mockMvc.perform(post("/imoveis/{id}/estoque/entradas", imovelId).contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "entrada-2026-0001")
+                        .content("{\"produtoId\": \"%s\", \"quantidade\": 24}".formatted(produtoId)))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Idempotent-Replay", "true"))
+                .andExpect(jsonPath("$.message").value("Operação já registrada com esta chave"));
+
+        mockMvc.perform(post("/imoveis/{id}/estoque/entradas", imovelId).contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "curta")
+                        .content("{\"produtoId\": \"%s\", \"quantidade\": 24}".formatted(produtoId)))
+                .andExpect(status().isBadRequest());
     }
 }

@@ -5,6 +5,7 @@ import com.gestaocasas.application.dto.ApiResponse;
 import com.gestaocasas.application.dto.EntradaEstoqueRequest;
 import com.gestaocasas.application.dto.MovimentacaoEstoqueResponse;
 import com.gestaocasas.application.dto.PageResponse;
+import com.gestaocasas.application.dto.ResultadoIdempotente;
 import com.gestaocasas.application.dto.TransferenciaEstoqueRequest;
 import com.gestaocasas.application.dto.TransferenciaEstoqueResponse;
 import com.gestaocasas.application.usecase.estoque.ListarMovimentacoesEstoqueUseCase;
@@ -15,6 +16,7 @@ import com.gestaocasas.domain.enums.TipoMovimentacao;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -31,6 +33,8 @@ import java.util.UUID;
 public class MovimentacaoEstoqueController {
 
     private static final String ESTOQUE_INSUFICIENTE = " Responde 422 se o saldo do imóvel não for suficiente.";
+    private static final String CHAVE_OPCIONAL = " Com o cabeçalho opcional Idempotency-Key, repetir a requisição "
+            + "devolve a operação já registrada (Idempotent-Replay: true) em vez de lançá-la de novo.";
 
     private final ListarMovimentacoesEstoqueUseCase listarMovimentacoes;
     private final RegistrarEntradaEstoqueUseCase registrarEntrada;
@@ -60,30 +64,45 @@ public class MovimentacaoEstoqueController {
     }
 
     @PostMapping("/imoveis/{imovelId}/estoque/entradas")
-    @Operation(summary = "Registra a entrada de mercadoria no estoque do imóvel")
+    @Operation(summary = "Registra a entrada de mercadoria no estoque do imóvel", description = CHAVE_OPCIONAL)
     public ResponseEntity<ApiResponse<MovimentacaoEstoqueResponse>> entrada(
-            @PathVariable UUID imovelId, @Valid @RequestBody EntradaEstoqueRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Entrada registrada com sucesso", registrarEntrada.execute(imovelId, request)));
+            @PathVariable UUID imovelId,
+            @RequestHeader(value = PdvController.CABECALHO_CHAVE, required = false)
+            @Pattern(regexp = PdvController.FORMATO_CHAVE, message = PdvController.CHAVE_INVALIDA)
+            String idempotencyKey,
+            @Valid @RequestBody EntradaEstoqueRequest request) {
+        return criado("Entrada registrada com sucesso", registrarEntrada.execute(imovelId, request, idempotencyKey));
     }
 
     @PostMapping("/imoveis/{imovelId}/estoque/ajustes")
     @Operation(summary = "Registra um ajuste de inventário ou uma perda",
             description = "Tipos: AJUSTE_POSITIVO, AJUSTE_NEGATIVO e PERDA. O motivo é obrigatório."
-                    + ESTOQUE_INSUFICIENTE)
+                    + ESTOQUE_INSUFICIENTE + CHAVE_OPCIONAL)
     public ResponseEntity<ApiResponse<MovimentacaoEstoqueResponse>> ajuste(
-            @PathVariable UUID imovelId, @Valid @RequestBody AjusteEstoqueRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Ajuste registrado com sucesso", registrarAjuste.execute(imovelId, request)));
+            @PathVariable UUID imovelId,
+            @RequestHeader(value = PdvController.CABECALHO_CHAVE, required = false)
+            @Pattern(regexp = PdvController.FORMATO_CHAVE, message = PdvController.CHAVE_INVALIDA)
+            String idempotencyKey,
+            @Valid @RequestBody AjusteEstoqueRequest request) {
+        return criado("Ajuste registrado com sucesso", registrarAjuste.execute(imovelId, request, idempotencyKey));
     }
 
     @PostMapping("/estoque/transferencias")
     @Operation(summary = "Transfere um produto do estoque de um imóvel para o de outro",
             description = "Gera uma saída na origem e uma entrada no destino, com a mesma referência."
-                    + ESTOQUE_INSUFICIENTE)
+                    + ESTOQUE_INSUFICIENTE + CHAVE_OPCIONAL)
     public ResponseEntity<ApiResponse<TransferenciaEstoqueResponse>> transferir(
+            @RequestHeader(value = PdvController.CABECALHO_CHAVE, required = false)
+            @Pattern(regexp = PdvController.FORMATO_CHAVE, message = PdvController.CHAVE_INVALIDA)
+            String idempotencyKey,
             @Valid @RequestBody TransferenciaEstoqueRequest request) {
+        return criado("Transferência registrada com sucesso", transferirEstoque.execute(request, idempotencyKey));
+    }
+
+    private static <T> ResponseEntity<ApiResponse<T>> criado(String mensagem, ResultadoIdempotente<T> resultado) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Transferência registrada com sucesso", transferirEstoque.execute(request)));
+                .header(PdvController.CABECALHO_REPETIDA, String.valueOf(resultado.repetida()))
+                .body(ApiResponse.ok(resultado.repetida() ? "Operação já registrada com esta chave" : mensagem,
+                        resultado.valor()));
     }
 }
