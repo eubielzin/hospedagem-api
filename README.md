@@ -57,7 +57,7 @@ cp .env.example .env      # preencha DATABASE_URL, DATABASE_USERNAME e DATABASE_
 | `DATABASE_URL` | sim | URL JDBC do Session pooler, com `?sslmode=require` |
 | `DATABASE_USERNAME` | sim | `postgres.<project-ref>` |
 | `DATABASE_PASSWORD` | sim | Senha do banco |
-| `CORS_ALLOWED_ORIGINS` | em produção | Origens (sites) autorizadas a chamar a API pelo navegador, separadas por vírgula. Padrão: `http://localhost:5173` |
+| `CORS_ALLOWED_ORIGINS` | em produção | Origens (sites) autorizadas a chamar a API pelo navegador, separadas por vírgula. Padrão: `http://localhost:3000,http://localhost:5173` (Next.js e Vite em desenvolvimento) |
 | `PORT` | não | Porta HTTP. Padrão `8080`; o Render define automaticamente |
 | `SPRING_PROFILES_ACTIVE` | em produção | `prod` no Render. Padrão: `local` |
 | `SWAGGER_ENABLED` | não | `true` para expor o Swagger no perfil `prod`. Padrão: `false` |
