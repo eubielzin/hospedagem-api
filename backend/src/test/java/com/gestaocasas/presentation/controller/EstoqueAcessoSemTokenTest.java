@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,11 +23,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Perfil de produção: sem autenticação na API, nenhuma rota de estoque responde. */
+/** Estoque, movimentações e PDV são administrativos: sem token, respondem 401. */
 @WebMvcTest(EstoqueImovelController.class)
 @Import({SecurityConfig.class, CorsConfig.class, GlobalExceptionHandler.class})
-@ActiveProfiles("prod")
-class EstoqueAcessoBloqueadoTest {
+class EstoqueAcessoSemTokenTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -41,21 +39,20 @@ class EstoqueAcessoBloqueadoTest {
     private DefinirEstoqueMinimoUseCase definirEstoqueMinimo;
 
     @Test
-    void rotasDeEstoqueRespondem403() throws Exception {
+    void rotasDeEstoqueEPdvRespondem401SemToken() throws Exception {
         UUID imovelId = UUID.randomUUID();
 
         mockMvc.perform(get("/imoveis/{id}/estoque", imovelId))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false));
-        mockMvc.perform(get("/imoveis/{id}/estoque/alertas", imovelId)).andExpect(status().isForbidden());
+        mockMvc.perform(get("/imoveis/{id}/estoque/alertas", imovelId)).andExpect(status().isUnauthorized());
         mockMvc.perform(put("/imoveis/{id}/estoque/{produtoId}", imovelId, UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"estoqueMinimo\": 5}"))
-                .andExpect(status().isForbidden());
-        // Rotas das próximas fases: já nascem protegidas.
-        mockMvc.perform(get("/imoveis/{id}/estoque/movimentacoes", imovelId)).andExpect(status().isForbidden());
-        mockMvc.perform(post("/imoveis/{id}/estoque/entradas", imovelId)).andExpect(status().isForbidden());
-        mockMvc.perform(post("/estoque/transferencias")).andExpect(status().isForbidden());
-        mockMvc.perform(post("/pdv/vendas")).andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/imoveis/{id}/estoque/movimentacoes", imovelId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/imoveis/{id}/estoque/entradas", imovelId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/estoque/transferencias")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/pdv/vendas")).andExpect(status().isUnauthorized());
 
         verifyNoInteractions(listarEstoque, listarAlertas, definirEstoqueMinimo);
     }

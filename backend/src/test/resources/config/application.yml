@@ -1,0 +1,9 @@
+# Só existe no classpath dos testes e tem precedência sobre o application.yml principal e o
+# backend/.env do desenvolvedor: os testes sempre usam este segredo e nunca criam o admin inicial.
+app:
+  auth:
+    jwt:
+      secret: segredo-dos-testes-com-mais-de-32-caracteres
+    admin-inicial:
+      email: ""
+      senha: ""

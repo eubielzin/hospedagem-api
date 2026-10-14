@@ -21,9 +21,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import java.util.List;
 import java.util.UUID;
@@ -43,7 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(ImovelFotoController.class)
 @Import({SecurityConfig.class, CorsConfig.class, GlobalExceptionHandler.class})
-@TestPropertySource(properties = "app.fotos.escrita-habilitada=true")
+@WithMockUser
 class ImovelFotoControllerTest {
 
     @Autowired

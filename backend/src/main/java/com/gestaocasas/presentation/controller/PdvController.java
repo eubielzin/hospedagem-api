@@ -29,8 +29,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/pdv/vendas")
-@Tag(name = "PDV", description = "Vendas avulsas por imóvel. Bloqueado (403) fora do ambiente local enquanto "
-        + "a API não tiver autenticação.")
+@Tag(name = "PDV", description = "Vendas avulsas por imóvel.")
 public class PdvController {
 
     public static final String CABECALHO_CHAVE = "Idempotency-Key";

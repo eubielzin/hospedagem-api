@@ -17,9 +17,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import java.time.Instant;
 import java.util.List;
@@ -36,10 +36,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Perfil local: as rotas de estoque ficam abertas enquanto não existe autenticação. */
 @WebMvcTest(EstoqueImovelController.class)
 @Import({SecurityConfig.class, CorsConfig.class, GlobalExceptionHandler.class})
-@ActiveProfiles("local")
+@WithMockUser
 class EstoqueImovelControllerTest {
 
     @Autowired

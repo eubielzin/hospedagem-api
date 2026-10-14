@@ -9,18 +9,14 @@ backend; o frontend não faz parte dele.
 | Banco | PostgreSQL | Supabase |
 
 **Estado atual:** estrutura do projeto e módulo de **imóveis** (cadastro, edição, listagem com
-filtros, inativação e fotos, por URL ou por upload para o Supabase Storage). Ainda **não há
-autenticação**: qualquer pessoa com a URL da API consegue ler e alterar os dados. Não cadastre
-dados reais de hóspedes antes de o módulo de autenticação existir. Por esse motivo o upload, a
-exclusão e a troca da foto principal ficam **desabilitados por padrão** (veja
-[Fotos dos imóveis](#fotos-dos-imóveis)).
+filtros, inativação e fotos, por URL ou por upload para o Supabase Storage), com
+**autenticação** por e-mail e senha e token JWT (veja [Autenticação](#autenticação)). Só a
+leitura de imóveis e fotos é pública; todo o resto exige login.
 
 Também existem **produtos, estoque por casa e PDV**: cadastro de produtos, saldo por imóvel
 (consulta, alertas e estoque mínimo), movimentações (entradas, ajustes, perdas e transferências
-entre casas), busca dinâmica de produtos e vendas avulsas com cancelamento e devolução. Reservas,
-financeiro e autenticação ainda não existem; o que depende deles está listado em
-[PDV e vendas](#pdv-e-vendas). Como é uma área administrativa, ela só responde no ambiente local até a autenticação existir
-(veja [Produtos](#produtos) e [Estoque por imóvel](#estoque-por-imóvel)).
+entre casas), busca dinâmica de produtos e vendas avulsas com cancelamento e devolução. Reservas
+e financeiro ainda não existem; o que depende deles está listado em [PDV e vendas](#pdv-e-vendas).
 
 ## Rodando localmente
 
@@ -42,9 +38,12 @@ manualmente no painel do Supabase.
 
 ```bash
 cd backend
-cp .env.example .env      # preencha DATABASE_URL, DATABASE_USERNAME e DATABASE_PASSWORD
+cp .env.example .env      # preencha o banco, JWT_SECRET, ADMIN_EMAIL e ADMIN_SENHA
 ./mvnw spring-boot:run
 ```
+
+Na primeira subida com o banco vazio, o usuário de `ADMIN_EMAIL`/`ADMIN_SENHA` é criado; use-o
+em `POST /auth/login` (veja [Autenticação](#autenticação)).
 
 - API: <http://localhost:8080>
 - Documentação (Swagger): <http://localhost:8080/swagger-ui.html>
@@ -64,7 +63,11 @@ cp .env.example .env      # preencha DATABASE_URL, DATABASE_USERNAME e DATABASE_
 | `SUPABASE_URL` | para upload | `https://<project-ref>.supabase.co` |
 | `SUPABASE_STORAGE_BUCKET` | não | Bucket das imagens. Padrão: `imoveis` |
 | `SUPABASE_SECRET_KEY` | para upload | Secret key do Supabase (Project Settings → API Keys). Só no backend; nunca a publishable key |
-| `FOTOS_ESCRITA_HABILITADA` | não | `true` libera upload, exclusão e foto principal. Padrão: `false`. Use somente em ambiente local |
+| `JWT_SECRET` | sim | Segredo que assina os tokens, com 32 caracteres ou mais. Gere com `openssl rand -base64 48`. Sem ele a aplicação não sobe. Trocar o valor invalida todos os tokens emitidos |
+| `JWT_VALIDADE` | não | Validade do token. Padrão: `8h` (aceita `30m`, `12h`, `1d`...) |
+| `ADMIN_EMAIL` | na primeira subida | E-mail do primeiro usuário, criado só se a tabela `usuario` estiver vazia |
+| `ADMIN_SENHA` | na primeira subida | Senha do primeiro usuário (8 a 72 caracteres). Ignorada depois que existir algum usuário |
+| `ADMIN_NOME` | não | Nome do primeiro usuário. Padrão: `Administrador` |
 | `SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE` | não | Limite por arquivo. Padrão: `5MB` |
 | `SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE` | não | Limite da requisição de upload. Padrão: `6MB` |
 | `PRODUTOS_BUSCA_LIMITE_MAXIMO` | não | Teto de resultados da busca dinâmica de produtos. Padrão: `50` |
@@ -119,7 +122,8 @@ com.gestaocasas
 │   └── repository             contratos de persistência (Spring Data)
 │   └── storage                contrato de armazenamento de arquivos (StoragePort)
 └── infrastructure
-    ├── config                 segurança, CORS, OpenAPI, tratamento global de erros
+    ├── config                 regras de acesso, CORS, OpenAPI, tratamento global de erros
+    ├── security               tokens JWT, hash de senha e criação do primeiro usuário
     └── storage                cliente HTTP do Supabase Storage
 ```
 
@@ -129,7 +133,7 @@ Toda resposta segue o envelope `{ "success", "message", "data" }`; erros de vali
 | Status | Quando |
 |---|---|
 | `400` | Corpo, parâmetro ou cabeçalho inválido; número fracionado em campo inteiro |
-| `403` | Rota bloqueada neste ambiente (a API ainda não tem autenticação) |
+| `401` | Sem token, token inválido ou expirado, ou e-mail/senha incorretos no login |
 | `404` | Imóvel, produto, foto ou venda não encontrado |
 | `409` | Conflito com um registro existente: código duplicado, chave de idempotência reutilizada com outro conteúdo, total esperado divergente |
 | `422` | Requisição válida, mas a regra de negócio não permite: estoque insuficiente, produto inativo, produto que não controla estoque, venda cancelada |
@@ -138,16 +142,21 @@ Toda resposta segue o envelope `{ "success", "message", "data" }`; erros de vali
 
 | Método | Rota | Descrição |
 |---|---|---|
-| POST | `/imoveis` | Cria um imóvel |
-| GET | `/imoveis?status=&nome=&page=&size=&sort=` | Lista com filtros e paginação |
-| GET | `/imoveis/{id}` | Consulta um imóvel |
-| PUT | `/imoveis/{id}` | Atualiza (inclusive o status) |
-| PATCH | `/imoveis/{id}/inativar` | Inativa |
-| GET | `/imoveis/{id}/fotos` | Lista as fotos, na ordem de exibição |
-| POST | `/imoveis/{id}/fotos` | Cadastra uma foto por URL externa |
-| POST | `/imoveis/{id}/fotos/upload` | Envia uma imagem para o Storage 🔒 |
-| PATCH | `/imoveis/{id}/fotos/{fotoId}/principal` | Define a foto principal 🔒 |
-| DELETE | `/imoveis/{id}/fotos/{fotoId}` | Exclui uma foto 🔒 |
+| POST | `/auth/login` | Login com e-mail e senha; devolve o token 🌐 |
+| GET | `/auth/me` | Dados do usuário dono do token 🔐 |
+| PATCH | `/auth/senha` | Troca a própria senha 🔐 |
+| POST | `/usuarios` | Cadastra um usuário 🔐 |
+| GET | `/usuarios` | Lista os usuários 🔐 |
+| POST | `/imoveis` | Cria um imóvel 🔐 |
+| GET | `/imoveis?status=&nome=&page=&size=&sort=` | Lista com filtros e paginação 🌐 |
+| GET | `/imoveis/{id}` | Consulta um imóvel 🌐 |
+| PUT | `/imoveis/{id}` | Atualiza (inclusive o status) 🔐 |
+| PATCH | `/imoveis/{id}/inativar` | Inativa 🔐 |
+| GET | `/imoveis/{id}/fotos` | Lista as fotos, na ordem de exibição 🌐 |
+| POST | `/imoveis/{id}/fotos` | Cadastra uma foto por URL externa 🔐 |
+| POST | `/imoveis/{id}/fotos/upload` | Envia uma imagem para o Storage 🔐 |
+| PATCH | `/imoveis/{id}/fotos/{fotoId}/principal` | Define a foto principal 🔐 |
+| DELETE | `/imoveis/{id}/fotos/{fotoId}` | Exclui uma foto 🔐 |
 | POST | `/produtos` | Cadastra um produto 🔐 |
 | GET | `/produtos?nome=&categoria=&ativo=&page=&size=&sort=` | Lista com filtros e paginação 🔐 |
 | GET | `/produtos/{id}` | Consulta um produto 🔐 |
@@ -166,11 +175,54 @@ Toda resposta segue o envelope `{ "success", "message", "data" }`; erros de vali
 | GET | `/pdv/vendas/{id}` | Consulta uma venda com os itens 🔐 |
 | POST | `/pdv/vendas/{id}/cancelar` | Cancela a venda e devolve o estoque 🔐 |
 | POST | `/pdv/vendas/{id}/devolucoes` | Devolução física de itens ao estoque 🔐 |
-| GET | `/actuator/health` | Health check |
+| GET | `/actuator/health` | Health check 🌐 |
 
-🔒 Respondem `403` enquanto `FOTOS_ESCRITA_HABILITADA` não for `true`.
+🌐 Pública. 🔐 Exige `Authorization: Bearer <token>`; sem ele, responde `401`.
 
-🔐 Respondem `403` fora do perfil `local`, enquanto a API não tiver autenticação.
+## Autenticação
+
+Login próprio da API: os usuários ficam na tabela `usuario`, com a senha guardada só como hash
+BCrypt. O login devolve um token JWT (HS256, assinado com `JWT_SECRET`), que o cliente envia em
+todas as rotas 🔐. Não há sessão nem cookie.
+
+```bash
+curl -X POST https://<api>/auth/login -H "Content-Type: application/json" \
+  -d '{"email":"admin@exemplo.com","senha":"sua-senha"}'
+```
+
+```json
+{
+  "success": true,
+  "message": "Login realizado com sucesso",
+  "data": {
+    "token": "eyJ...",
+    "tipo": "Bearer",
+    "expiraEm": "2026-10-15T02:00:00Z",
+    "usuario": { "id": "...", "nome": "Administrador", "email": "admin@exemplo.com", "ativo": true, "criadoEm": "...", "atualizadoEm": "..." }
+  }
+}
+```
+
+```bash
+curl https://<api>/pdv/vendas -H "Authorization: Bearer eyJ..."
+```
+
+- **Primeiro acesso:** sem nenhum usuário não há como fazer login. Na subida, se a tabela
+  `usuario` estiver vazia e `ADMIN_EMAIL` e `ADMIN_SENHA` estiverem definidas, o primeiro
+  usuário é criado. Depois disso as variáveis são ignoradas: troque a senha por
+  `PATCH /auth/senha` e, se quiser, remova `ADMIN_SENHA` do Render.
+- **Outros usuários:** qualquer usuário logado cadastra outros em `POST /usuarios`. Ainda não há
+  perfis (todos têm o mesmo acesso) nem rota para inativar usuário; para bloquear alguém, use
+  `UPDATE usuario SET ativo = false WHERE email = '...'` no banco.
+- **Expiração:** o token vale `JWT_VALIDADE` (padrão 8 horas). Ao receber `401`, o cliente deve
+  voltar para a tela de login. Não há refresh token nem logout no servidor: um token emitido vale
+  até expirar, mesmo que o usuário seja inativado ou troque a senha. Para derrubar todos os
+  tokens de uma vez, troque `JWT_SECRET`.
+- **Login errado:** e-mail inexistente, senha errada e usuário inativo respondem o mesmo `401`
+  ("E-mail ou senha inválidos"), para não revelar quais e-mails estão cadastrados.
+- **Token em rota pública:** se um token inválido ou expirado for enviado mesmo numa rota
+  pública, a resposta é `401`. Não envie o cabeçalho quando não houver token.
+- **Swagger:** use o botão **Authorize** com o token devolvido pelo login.
 
 Imóveis e produtos não são excluídos fisicamente: não existe `DELETE /imoveis/{id}` nem
 `DELETE /produtos/{id}`.
@@ -512,19 +564,13 @@ Os pontos abaixo dependem de módulos que não foram construídos. Nada foi simu
   itens devolvidos, não um reembolso.
 - **Reservas:** a API só registra vendas avulsas. A coluna `venda.reserva_id` e o tipo `RESERVA`
   estão reservados para quando o módulo de reservas existir; hoje não há como informá-los.
-- **Usuário:** a venda não registra quem a fez, porque não há autenticação.
+- **Usuário:** a venda ainda não registra quem a fez.
 - **Desconto, acréscimo e número sequencial de venda** não existem.
 
 ### Acesso
 
-Produtos, estoque e PDV são rotas administrativas e exigem usuário autenticado. Como a API ainda
-não tem login, elas respondem `403` em qualquer perfil que não seja o `local`, inclusive as de
-leitura (a listagem expõe o preço de custo). A imagem Docker define `SPRING_PROFILES_ACTIVE=prod`,
-então o deploy nasce bloqueado mesmo que a variável não seja configurada no Render.
-
-A abertura no perfil `local` é provisória e existe só para desenvolvimento. Antes de usar o
-módulo em produção é preciso implementar autenticação e autorização; trocar o perfil ou criar
-uma variável para liberar as rotas não é uma alternativa aceitável.
+Produtos, estoque e PDV exigem token em qualquer ambiente, inclusive as rotas de leitura (a
+listagem expõe o preço de custo). Veja [Autenticação](#autenticação).
 
 ### Contrato a conferir com o frontend
 
@@ -585,7 +631,7 @@ outro conteúdo são recusados.
 | Tipo não permitido | 415 |
 | Imóvel ou foto inexistente, ou foto de outro imóvel | 404 |
 | Falha no Supabase Storage | 502 |
-| Escrita desabilitada no ambiente | 403 |
+| Sem token ou token inválido | 401 |
 
 ### Exemplos
 
@@ -645,16 +691,10 @@ Banco e Storage não compartilham transação, então:
 
 Fotos cadastradas por URL continuam funcionando; nelas não há arquivo para remover.
 
-### Limitação de segurança
+### Acesso
 
-Upload, exclusão e foto principal usam a secret key do Supabase, e a API ainda não identifica
-quem está chamando. Por isso essas três rotas respondem `403` a menos que
-`FOTOS_ESCRITA_HABILITADA=true`. Habilite somente em ambiente local. **Não habilite no Render
-enquanto não houver autenticação:** qualquer pessoa com a URL poderia enviar e apagar arquivos
-do bucket. CORS não protege contra isso, porque só restringe navegadores.
-
-As demais rotas de escrita (imóveis e foto por URL) continuam abertas, como já eram. As rotas
-de produtos seguem outra regra, descrita em [Produtos](#produtos).
+Upload, exclusão, foto principal e cadastro por URL exigem token, porque usam a secret key do
+Supabase. A listagem de fotos é pública.
 
 ### Migrações
 
@@ -672,6 +712,7 @@ mudanças de schema entram em um novo arquivo `V<n>__descricao.sql`. O Hibernate
 | V6 | Movimentações de estoque e trigger de imutabilidade |
 | V7 | Busca de produtos: função de normalização, colunas geradas e índices trigram |
 | V8 | Vendas, itens de venda e chaves de idempotência |
+| V9 | Usuários |
 
 ## Deploy no Render
 
@@ -684,14 +725,15 @@ mudanças de schema entram em um novo arquivo `V<n>__descricao.sql`. O Hibernate
 4. Em **Environment**, defina `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`,
    `SPRING_PROFILES_ACTIVE=prod` e `CORS_ALLOWED_ORIGINS` com a URL do site que vai consumir a
    API (sem barra no final). Não defina `PORT`. Para as fotos, defina `SUPABASE_URL` e
-   `SUPABASE_SECRET_KEY`, e **não** defina `FOTOS_ESCRITA_HABILITADA` (veja
-   [Limitação de segurança](#limitação-de-segurança)).
-5. Faça o deploy e confira `https://<servico>.onrender.com/actuator/health`.
+   `SUPABASE_SECRET_KEY`.
+5. Defina `JWT_SECRET` (gere com `openssl rand -base64 48`; nunca reaproveite o do `.env` local)
+   e, para o primeiro acesso, `ADMIN_EMAIL` e `ADMIN_SENHA`.
+6. Faça o deploy, confira `https://<servico>.onrender.com/actuator/health` e faça login em
+   `POST /auth/login`. Depois troque a senha por `PATCH /auth/senha`.
 
 O deploy aplica as migrações pendentes ao iniciar. A V7 cria a extensão `pg_trgm` no schema
 `extensions` do Supabase; se isso não for possível, ela registra um aviso no log e segue sem os
-índices da busca. As rotas de produtos, estoque e PDV sobem bloqueadas (`403`) em produção até
-existir autenticação.
+índices da busca.
 
 No plano gratuito o serviço hiberna após um período sem requisições, e a primeira chamada
 seguinte pode levar perto de um minuto.

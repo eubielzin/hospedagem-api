@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,15 +27,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Configuração de produção: sem FOTOS_ESCRITA_HABILITADA=true, as rotas que usam a chave secreta
- * do Storage respondem 403 e nenhum caso de uso é chamado. O valor é fixado aqui porque os testes
- * também leem o backend/.env do desenvolvedor, onde a escrita costuma estar habilitada.
- */
+/** Sem token, a escrita de fotos responde 401 e nenhum caso de uso é chamado; a leitura é pública. */
 @WebMvcTest(ImovelFotoController.class)
 @Import({SecurityConfig.class, CorsConfig.class, GlobalExceptionHandler.class})
-@TestPropertySource(properties = "app.fotos.escrita-habilitada=false")
-class ImovelFotoEscritaDesabilitadaTest {
+class ImovelFotoAcessoSemTokenTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -55,23 +50,26 @@ class ImovelFotoEscritaDesabilitadaTest {
     private final UUID fotoId = UUID.randomUUID();
 
     @Test
-    void uploadExclusaoEPrincipalRespondem403() throws Exception {
+    void escritaRespondem401() throws Exception {
         MockMultipartFile arquivo = new MockMultipartFile("file", "a.png", "image/png", ImagemFixtures.png(10, 10));
 
         mockMvc.perform(multipart("/imoveis/{id}/fotos/upload", imovelId).file(arquivo))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").exists());
+        mockMvc.perform(post("/imoveis/{id}/fotos", imovelId).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"url\":\"https://exemplo.com/a.png\"}"))
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(delete("/imoveis/{id}/fotos/{fotoId}", imovelId, fotoId))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(patch("/imoveis/{id}/fotos/{fotoId}/principal", imovelId, fotoId))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(uploadImagem, excluirImagem, definirFotoPrincipal);
+        verifyNoInteractions(addImovelFoto, uploadImagem, excluirImagem, definirFotoPrincipal);
     }
 
     @Test
-    void leituraContinuaLiberada() throws Exception {
+    void leituraContinuaPublica() throws Exception {
         when(listarFotos.execute(imovelId)).thenReturn(List.of());
 
         mockMvc.perform(get("/imoveis/{id}/fotos", imovelId)).andExpect(status().isOk());

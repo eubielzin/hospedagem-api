@@ -10,6 +10,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -41,12 +42,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(UsuarioAutenticado.class)
 class ImovelPersistenceIT {
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
         BancoDeTeste.registrar(registry);
-        registry.add("app.fotos.escrita-habilitada", () -> "true");
     }
 
     private static final String URL_PUBLICA = "https://teste.supabase.co/storage/v1/object/public/imoveis/";
@@ -113,7 +114,7 @@ class ImovelPersistenceIT {
 
         Integer migracoes = jdbc.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class);
-        assertThat(migracoes).isEqualTo(8);
+        assertThat(migracoes).isEqualTo(9);
     }
 
     @Test

@@ -7,10 +7,17 @@ server:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+  auth:
+    jwt:
+      # Segredo HMAC dos tokens, com 32 caracteres ou mais. Sem ele a aplicação não sobe.
+      secret: ${JWT_SECRET:}
+      validade: ${JWT_VALIDADE:8h}
+    # Só usado se a tabela usuario estiver vazia: cria o primeiro acesso na subida.
+    admin-inicial:
+      nome: ${ADMIN_NOME:Administrador}
+      email: ${ADMIN_EMAIL:}
+      senha: ${ADMIN_SENHA:}
   fotos:
-    # Upload, exclusão e foto principal usam a chave secreta do Storage. Sem autenticação na API,
-    # ficam bloqueados (403) a menos que a variável seja true. Não habilite em ambiente público.
-    escrita-habilitada: ${FOTOS_ESCRITA_HABILITADA:false}
     tamanho-maximo: 5MB
     dimensao-maxima: 8000
     pixels-maximos: 40000000

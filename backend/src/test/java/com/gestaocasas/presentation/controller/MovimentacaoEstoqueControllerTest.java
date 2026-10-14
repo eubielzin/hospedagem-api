@@ -22,9 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import java.time.Instant;
 import java.util.List;
@@ -42,10 +42,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Perfil local: as rotas de movimentação ficam abertas enquanto não existe autenticação. */
 @WebMvcTest(MovimentacaoEstoqueController.class)
 @Import({SecurityConfig.class, CorsConfig.class, GlobalExceptionHandler.class})
-@ActiveProfiles("local")
+@WithMockUser
 class MovimentacaoEstoqueControllerTest {
 
     @Autowired

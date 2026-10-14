@@ -37,9 +37,6 @@ import java.util.UUID;
 @Tag(name = "Fotos do imóvel")
 public class ImovelFotoController {
 
-    private static final String SOMENTE_COM_ESCRITA_HABILITADA =
-            " Responde 403 enquanto FOTOS_ESCRITA_HABILITADA não for true (padrão em produção).";
-
     private final AddImovelFotoUseCase addImovelFoto;
     private final UploadImagemImovelUseCase uploadImagem;
     private final ListarFotosImovelUseCase listarFotos;
@@ -72,7 +69,7 @@ public class ImovelFotoController {
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Envia uma imagem (JPEG, PNG ou WebP, até 5 MB) para o Supabase Storage",
-            description = "A primeira foto do imóvel vira a principal." + SOMENTE_COM_ESCRITA_HABILITADA)
+            description = "A primeira foto do imóvel vira a principal.")
     public ResponseEntity<ApiResponse<ImovelFotoResponse>> upload(
             @PathVariable UUID imovelId,
             @Parameter(description = "Arquivo da imagem") @RequestPart("file") MultipartFile file,
@@ -86,8 +83,7 @@ public class ImovelFotoController {
 
     @DeleteMapping("/{fotoId}")
     @Operation(summary = "Exclui uma foto; se for um arquivo enviado, remove-o também do Storage",
-            description = "Se o Storage falhar a resposta é 502 e a exclusão fica pendente: repita a chamada."
-                    + SOMENTE_COM_ESCRITA_HABILITADA)
+            description = "Se o Storage falhar a resposta é 502 e a exclusão fica pendente: repita a chamada.")
     public ResponseEntity<Void> removeFoto(@PathVariable UUID imovelId, @PathVariable UUID fotoId) {
         excluirImagem.execute(imovelId, fotoId);
         return ResponseEntity.noContent().build();
@@ -95,7 +91,7 @@ public class ImovelFotoController {
 
     @PatchMapping("/{fotoId}/principal")
     @Operation(summary = "Define a foto principal do imóvel",
-            description = "A principal anterior deixa de ser." + SOMENTE_COM_ESCRITA_HABILITADA)
+            description = "A principal anterior deixa de ser.")
     public ResponseEntity<ApiResponse<ImovelFotoResponse>> definirPrincipal(@PathVariable UUID imovelId,
                                                                             @PathVariable UUID fotoId) {
         return ResponseEntity.ok(ApiResponse.ok("Foto principal definida com sucesso",

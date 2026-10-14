@@ -20,8 +20,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/imoveis/{imovelId}/estoque")
-@Tag(name = "Estoque por imóvel", description = "Cada imóvel tem o seu próprio saldo de cada produto. "
-        + "Bloqueado (403) fora do ambiente local enquanto a API não tiver autenticação.")
+@Tag(name = "Estoque por imóvel", description = "Cada imóvel tem o seu próprio saldo de cada produto.")
 public class EstoqueImovelController {
 
     private final ListarEstoqueImovelUseCase listarEstoque;

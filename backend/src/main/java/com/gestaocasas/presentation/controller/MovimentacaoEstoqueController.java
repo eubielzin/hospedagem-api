@@ -28,8 +28,7 @@ import java.util.UUID;
 
 @RestController
 @Tag(name = "Movimentações de estoque", description = "Entradas, ajustes, perdas e transferências. Cada "
-        + "operação gera um registro imutável com o saldo anterior e o posterior. Bloqueado (403) fora do "
-        + "ambiente local enquanto a API não tiver autenticação.")
+        + "operação gera um registro imutável com o saldo anterior e o posterior.")
 public class MovimentacaoEstoqueController {
 
     private static final String ESTOQUE_INSUFICIENTE = " Responde 422 se o saldo do imóvel não for suficiente.";

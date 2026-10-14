@@ -3,6 +3,7 @@ package com.gestaocasas.infrastructure.config;
 import com.gestaocasas.application.dto.ApiError;
 import com.gestaocasas.domain.exception.ArquivoInvalidoException;
 import com.gestaocasas.domain.exception.ConflitoException;
+import com.gestaocasas.domain.exception.CredenciaisInvalidasException;
 import com.gestaocasas.domain.exception.RegraDeNegocioException;
 import com.gestaocasas.domain.exception.ResourceNotFoundException;
 import com.gestaocasas.domain.exception.StorageException;
@@ -35,6 +36,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiError.of(ex.getMessage()));
+    }
+
+    @ExceptionHandler(CredenciaisInvalidasException.class)
+    public ResponseEntity<ApiError> handleCredenciaisInvalidas(CredenciaisInvalidasException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiError.of(ex.getMessage()));
     }
 
     @ExceptionHandler(ConflitoException.class)

@@ -28,7 +28,7 @@ COPY --from=build --chown=app:app /app/app.jar app.jar
 USER app
 
 ENV PORT=10000
-# A imagem é a de produção: sem isto, o perfil padrão seria "local", que libera rotas administrativas.
+# A imagem é a de produção: sem isto, o perfil padrão seria "local" (SQL no log).
 ENV SPRING_PROFILES_ACTIVE=prod
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65.0"
 

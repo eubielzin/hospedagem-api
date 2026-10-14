@@ -26,8 +26,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/produtos")
-@Tag(name = "Produtos", description = "Catálogo único da plataforma. Bloqueado (403) fora do ambiente local "
-        + "enquanto a API não tiver autenticação.")
+@Tag(name = "Produtos", description = "Catálogo único da plataforma.")
 public class ProdutoController {
 
     private final CreateProdutoUseCase createProduto;
