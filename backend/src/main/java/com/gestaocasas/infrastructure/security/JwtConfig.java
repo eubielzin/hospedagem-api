@@ -1,11 +1,16 @@
 package com.gestaocasas.infrastructure.security;
 
+import com.gestaocasas.domain.repository.UsuarioRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -43,10 +48,18 @@ public class JwtConfig {
         return NimbusJwtEncoder.withSecretKey(chave).build();
     }
 
+    /**
+     * Além de assinatura, emissor e expiração, confere a cada requisição se o dono do token continua
+     * ativo: inativar um usuário corta o acesso na hora, sem esperar o token expirar. Nos testes de
+     * fatia web (sem JPA) o repositório não existe e essa conferência fica de fora.
+     */
     @Bean
-    public JwtDecoder jwtDecoder() {
+    public JwtDecoder jwtDecoder(ObjectProvider<UsuarioRepository> usuarios) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(chave).macAlgorithm(MacAlgorithm.HS256).build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(EMISSOR));
+        OAuth2TokenValidator<Jwt> padrao = JwtValidators.createDefaultWithIssuer(EMISSOR);
+        UsuarioRepository repository = usuarios.getIfAvailable();
+        decoder.setJwtValidator(repository == null ? padrao
+                : new DelegatingOAuth2TokenValidator<>(padrao, new UsuarioAtivoValidator(repository)));
         return decoder;
     }
 

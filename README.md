@@ -134,7 +134,7 @@ Toda resposta segue o envelope `{ "success", "message", "data" }`; erros de vali
 |---|---|
 | `400` | Corpo, parâmetro ou cabeçalho inválido; número fracionado em campo inteiro |
 | `401` | Sem token, token inválido ou expirado, ou e-mail/senha incorretos no login |
-| `404` | Imóvel, produto, foto ou venda não encontrado |
+| `404` | Imóvel, produto, foto, venda, hóspede, usuário, reserva ou canal não encontrado |
 | `409` | Conflito com um registro existente: código duplicado, chave de idempotência reutilizada com outro conteúdo, total esperado divergente |
 | `422` | Requisição válida, mas a regra de negócio não permite: estoque insuficiente, produto inativo, produto que não controla estoque, venda cancelada |
 
@@ -147,6 +147,30 @@ Toda resposta segue o envelope `{ "success", "message", "data" }`; erros de vali
 | PATCH | `/auth/senha` | Troca a própria senha 🔐 |
 | POST | `/usuarios` | Cadastra um usuário 🔐 |
 | GET | `/usuarios` | Lista os usuários 🔐 |
+| GET | `/usuarios/{id}` | Consulta um usuário 🔐 |
+| PUT | `/usuarios/{id}` | Atualiza nome e e-mail 🔐 |
+| PATCH | `/usuarios/{id}/inativar` | Inativa e corta o acesso na hora (não vale para o próprio usuário) 🔐 |
+| PATCH | `/usuarios/{id}/reativar` | Reativa 🔐 |
+| PATCH | `/usuarios/{id}/senha` | Redefine a senha de outro usuário, sem pedir a atual 🔐 |
+| GET | `/hospedes?busca=&incluirInativos=` | Lista hóspedes em ordem alfabética, com busca por nome ou documento 🔐 |
+| GET | `/hospedes/{id}` | Consulta um hóspede 🔐 |
+| POST | `/hospedes` | Cadastra um hóspede 🔐 |
+| PUT | `/hospedes/{id}` | Atualiza os dados de um hóspede 🔐 |
+| PATCH | `/hospedes/{id}/inativar` | Inativa 🔐 |
+| PATCH | `/hospedes/{id}/reativar` | Reativa 🔐 |
+| GET | `/hospedes/{id}/historico` | Reservas em que o hóspede é titular 🔐 |
+| GET | `/reservas?busca=&status=&canalId=&inicio=&fim=` | Lista reservas, da entrada mais recente para a mais antiga 🔐 |
+| GET | `/reservas/{id}` | Consulta uma reserva 🔐 |
+| POST | `/reservas` | Cria uma reserva (status `RESERVADO`) 🔐 |
+| PUT | `/reservas/{id}` | Edita uma reserva ainda `RESERVADO` 🔐 |
+| POST | `/reservas/{id}/checkin` | Check-in: `RESERVADO` → `HOSPEDADO` 🔐 |
+| POST | `/reservas/{id}/checkout` | Check-out: `HOSPEDADO` → `CHECKOUT_REALIZADO` 🔐 |
+| POST | `/reservas/{id}/cancelar` | Cancela (`RESERVADO` → `CANCELADA`), com motivo opcional 🔐 |
+| GET | `/canais?incluirInativos=` | Lista os canais de venda 🔐 |
+| POST | `/canais` | Cadastra um canal 🔐 |
+| PUT | `/canais/{id}` | Atualiza nome e tipo 🔐 |
+| PATCH | `/canais/{id}/inativar` | Inativa (some do formulário de nova reserva) 🔐 |
+| PATCH | `/canais/{id}/reativar` | Reativa 🔐 |
 | POST | `/imoveis` | Cria um imóvel 🔐 |
 | GET | `/imoveis?status=&nome=&page=&size=&sort=` | Lista com filtros e paginação 🌐 |
 | GET | `/imoveis/{id}` | Consulta um imóvel 🌐 |
@@ -211,13 +235,14 @@ curl https://<api>/pdv/vendas -H "Authorization: Bearer eyJ..."
   `usuario` estiver vazia e `ADMIN_EMAIL` e `ADMIN_SENHA` estiverem definidas, o primeiro
   usuário é criado. Depois disso as variáveis são ignoradas: troque a senha por
   `PATCH /auth/senha` e, se quiser, remova `ADMIN_SENHA` do Render.
-- **Outros usuários:** qualquer usuário logado cadastra outros em `POST /usuarios`. Ainda não há
-  perfis (todos têm o mesmo acesso) nem rota para inativar usuário; para bloquear alguém, use
-  `UPDATE usuario SET ativo = false WHERE email = '...'` no banco.
+- **Outros usuários:** qualquer usuário logado cadastra, edita, inativa e reativa outros em
+  `/usuarios`. Ainda não há perfis: todos têm o mesmo acesso. Usuários não são excluídos.
+- **Inativação:** corta o acesso na hora. A cada requisição a API confere se o dono do token
+  continua ativo, então o token de um usuário inativado é recusado (`401`) mesmo dentro da
+  validade. Ninguém inativa o próprio usuário (`422`), o que garante que sempre reste um ativo.
 - **Expiração:** o token vale `JWT_VALIDADE` (padrão 8 horas). Ao receber `401`, o cliente deve
-  voltar para a tela de login. Não há refresh token nem logout no servidor: um token emitido vale
-  até expirar, mesmo que o usuário seja inativado ou troque a senha. Para derrubar todos os
-  tokens de uma vez, troque `JWT_SECRET`.
+  voltar para a tela de login. Não há refresh token nem logout no servidor. Trocar ou redefinir a
+  senha não derruba tokens já emitidos; para derrubar todos de uma vez, troque `JWT_SECRET`.
 - **Login errado:** e-mail inexistente, senha errada e usuário inativo respondem o mesmo `401`
   ("E-mail ou senha inválidos"), para não revelar quais e-mails estão cadastrados.
 - **Token em rota pública:** se um token inválido ou expirado for enviado mesmo numa rota
@@ -226,6 +251,75 @@ curl https://<api>/pdv/vendas -H "Authorization: Bearer eyJ..."
 
 Imóveis e produtos não são excluídos fisicamente: não existe `DELETE /imoveis/{id}` nem
 `DELETE /produtos/{id}`.
+
+## Hóspedes
+
+Cadastro de hóspedes (RF-20). Registros nunca são excluídos, só inativados (RN-15). Por
+enquanto o cadastro tem só os campos da tela de listagem: nome, documento, nacionalidade e
+telefone. O modelo `Hospede` do frontend também prevê data de nascimento, e-mail, endereço e
+observações alimentares, que ainda não existem na API.
+
+| Campo | Regra |
+|---|---|
+| `nome` | Obrigatório, até 150 caracteres |
+| `tipoDocumento` | Obrigatório: `CPF`, `RG` ou `PASSAPORTE` |
+| `numeroDocumento` | Opcional no cadastro (é exigido no check-in, RN-04). CPF precisa ter dígitos verificadores válidos e é guardado só com os dígitos; RG e passaporte, em maiúsculas. Sem documento, a resposta traz `""` (nunca `null`) |
+| `nacionalidade` | Obrigatória, até 60 caracteres |
+| `telefone` | Opcional, até 30 caracteres; em branco vira `null` |
+
+- **Documento único:** o mesmo tipo e número não pode pertencer a dois hóspedes, ativos ou
+  inativos. A comparação ignora pontuação e maiúsculas (`529.982.247-25` = `52998224725`).
+  Conflito responde `409` com o nome de quem já tem o documento. Vários hóspedes podem ficar
+  sem documento.
+- **Busca:** `busca` procura parte do nome, sem diferenciar maiúsculas nem acentos, ou parte dos
+  dígitos do documento. Sem `busca`, lista todos. A resposta é uma lista, sem paginação.
+- **Histórico:** `GET /hospedes/{id}/historico` devolve as reservas em que o hóspede é titular,
+  inclusive canceladas, no mesmo formato da listagem de reservas.
+- **LGPD:** todas as rotas exigem token. A API devolve o documento completo; mascarar na
+  listagem é tarefa da tela.
+
+## Reservas
+
+A UH (unidade habitacional) de uma reserva é o **imóvel**: `uhId` é o id do imóvel e `uhNome`, o
+nome dele. Não existem categorias de UH nem tarifas; o valor total é informado na reserva.
+
+```json
+POST /reservas
+{
+  "uhId": "id-do-imóvel",
+  "titularId": "id-do-hóspede",
+  "canalId": "id-do-canal",
+  "checkin": "2027-02-27",
+  "checkout": "2027-03-06",
+  "adultos": 2,
+  "criancas": 0,
+  "valorTotal": 3360.00,
+  "observacoes": null
+}
+```
+
+A resposta traz também `codigo` (`CM-1001`, `CM-1002`...), `uhNome`, `titularNome`, `canalNome`,
+`status` e as datas de check-in, check-out e cancelamento realizados.
+
+- **Período:** `[checkin, checkout)`. A noite do checkout não é ocupada, então uma reserva pode
+  começar no dia em que outra termina.
+- **Conflito (`409`):** a UH não pode ter duas reservas `RESERVADO` ou `HOSPEDADO` que se cruzem.
+  Reservas canceladas liberam o período. A verificação bloqueia a linha do imóvel, então duas
+  criações simultâneas para o mesmo período resultam em uma reserva e um `409`.
+- **Regras (`422`):** saída depois da entrada; imóvel `ATIVO`; adultos + crianças até a
+  `capacidadeMaxima` do imóvel; hóspede e canal ativos (na edição, manter um que foi inativado
+  depois é permitido).
+- **Ciclo de vida:** `RESERVADO` → `HOSPEDADO` → `CHECKOUT_REALIZADO`, ou `RESERVADO` →
+  `CANCELADA`. Só `RESERVADO` pode ser editada ou cancelada. O check-in só é aceito a partir da
+  data de entrada (no fuso de Brasília) e exige o documento do titular preenchido (RN-04).
+  `NO_SHOW` existe no contrato, mas ainda não há rota que o registre.
+- **Listagem:** `busca` procura no nome do hóspede, no código (`CM-1546` ou `1546`) e no nome da
+  UH, sem diferenciar maiúsculas nem acentos. `inicio`/`fim` devolvem as reservas cujo período
+  cruza o intervalo. Resposta em lista, sem paginação.
+- **Canais:** a migração cria `Direto (recepção)`, `Booking.com`, `Airbnb` e `Expedia`. Tipos:
+  `DIRETO`, `OTA` e `MOTOR`.
+- **Ainda não existe:** cotação por tarifa, regime de pensão, FNRH, no-show com multa, conta do
+  hóspede, mapa de hospedagens, bloqueios e remanejamento.
 
 ## Produtos
 
@@ -562,8 +656,9 @@ Os pontos abaixo dependem de módulos que não foram construídos. Nada foi simu
   recebida**. Não há forma de pagamento, troco, caixa nem reembolso. O valor `RECEBIDO` existe
   no banco só como ponto de integração para o módulo financeiro. `totalDevolvido` é o valor dos
   itens devolvidos, não um reembolso.
-- **Reservas:** a API só registra vendas avulsas. A coluna `venda.reserva_id` e o tipo `RESERVA`
-  estão reservados para quando o módulo de reservas existir; hoje não há como informá-los.
+- **Reservas:** o módulo de reservas já existe, mas o PDV ainda não se liga a ele: a API só
+  registra vendas avulsas. A coluna `venda.reserva_id` e o tipo `RESERVA` estão reservados para
+  lançar consumos na conta do hóspede, que ainda não existe.
 - **Usuário:** a venda ainda não registra quem a fez.
 - **Desconto, acréscimo e número sequencial de venda** não existem.
 
@@ -713,6 +808,8 @@ mudanças de schema entram em um novo arquivo `V<n>__descricao.sql`. O Hibernate
 | V7 | Busca de produtos: função de normalização, colunas geradas e índices trigram |
 | V8 | Vendas, itens de venda e chaves de idempotência |
 | V9 | Usuários |
+| V10 | Hóspedes |
+| V11 | Canais (com os 4 iniciais) e reservas |
 
 ## Deploy no Render
 
