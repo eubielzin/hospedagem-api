@@ -38,12 +38,10 @@ manualmente no painel do Supabase.
 
 ```bash
 cd backend
-cp .env.example .env      # preencha o banco, JWT_SECRET, ADMIN_EMAIL e ADMIN_SENHA
+cp .env.example .env     
 ./mvnw spring-boot:run
 ```
 
-Na primeira subida com o banco vazio, o usuário de `ADMIN_EMAIL`/`ADMIN_SENHA` é criado; use-o
-em `POST /auth/login` (veja [Autenticação](#autenticação)).
 
 - API: <http://localhost:8080>
 - Documentação (Swagger): <http://localhost:8080/swagger-ui.html>
