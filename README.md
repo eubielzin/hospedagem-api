@@ -74,8 +74,8 @@ cp .env.example .env
 
 ```bash
 cd backend
-./mvnw test      # unitários e de controller — não precisam de banco nem de Docker
-./mvnw verify    # inclui os testes de integração (*IT), contra um PostgreSQL real
+./mvnw test 
+./mvnw verify 
 ```
 
 Os testes de integração sobem a aplicação inteira e rodam todas as migrações em um PostgreSQL
