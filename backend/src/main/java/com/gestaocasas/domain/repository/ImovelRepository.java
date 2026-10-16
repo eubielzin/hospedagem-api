@@ -1,6 +1,8 @@
 package com.gestaocasas.domain.repository;
 
 import com.gestaocasas.domain.entity.Imovel;
+import com.gestaocasas.domain.enums.StatusGovernanca;
+import com.gestaocasas.domain.enums.StatusImovel;
 import com.gestaocasas.domain.enums.TipoUh;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -29,4 +31,7 @@ public interface ImovelRepository extends JpaRepository<Imovel, UUID>, JpaSpecif
     Optional<Imovel> findFirstByTipo(TipoUh tipo);
 
     Optional<Imovel> findFirstByTipoOrderByCriadoEmAsc(TipoUh tipo);
+
+    Optional<Imovel> findFirstByTipoAndStatusAndStatusGovernancaOrderByNome(TipoUh tipo, StatusImovel status,
+                                                                          StatusGovernanca statusGovernanca);
 }

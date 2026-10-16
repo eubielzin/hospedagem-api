@@ -5,7 +5,9 @@ import com.gestaocasas.domain.entity.Canal;
 import com.gestaocasas.domain.entity.Hospede;
 import com.gestaocasas.domain.entity.Imovel;
 import com.gestaocasas.domain.entity.Reserva;
+import com.gestaocasas.domain.enums.StatusGovernanca;
 import com.gestaocasas.domain.enums.StatusImovel;
+import com.gestaocasas.domain.enums.TipoUh;
 import com.gestaocasas.domain.exception.CanalNotFoundException;
 import com.gestaocasas.domain.exception.ConflitoException;
 import com.gestaocasas.domain.exception.HospedeNotFoundException;
@@ -56,6 +58,11 @@ public class PreenchedorReserva {
         if (imovel.getStatus() != StatusImovel.ATIVO) {
             throw new RegraDeNegocioException("RN-15", "A UH '" + imovel.getNome() + "' está inativa.");
         }
+        // Na edição, a reserva que já estava nesta UH continua editável se ela entrar em manutenção depois.
+        boolean mesmaUh = reserva.getImovel() != null && reserva.getImovel().getId().equals(imovel.getId());
+        if (!mesmaUh) {
+            exigirForaDeManutencao(imovel);
+        }
         if (request.adultos() > imovel.getCapacidadeAdultos() || criancas > imovel.getCapacidadeCriancas()) {
             throw new RegraDeNegocioException("RN-13", "A UH '" + imovel.getNome() + "' comporta "
                     + imovel.getCapacidadeAdultos() + " adultos e " + imovel.getCapacidadeCriancas() + " crianças.");
@@ -94,6 +101,30 @@ public class PreenchedorReserva {
         reserva.setValorTotal(request.valorTotal());
         reserva.setObservacoes(request.observacoes() == null || request.observacoes().isBlank()
                 ? null : request.observacoes().trim());
+    }
+
+    /**
+     * RF-35: UH em manutenção não recebe reserva nova. Vale nos dois sentidos do RN-02: o imóvel completo
+     * inclui todas as casas, e cada casa faz parte dele.
+     */
+    private void exigirForaDeManutencao(Imovel imovel) {
+        if (imovel.getStatusGovernanca() == StatusGovernanca.MANUTENCAO) {
+            throw new RegraDeNegocioException("RF-35", "A UH '" + imovel.getNome() + "' está em manutenção.");
+        }
+        if (imovel.getTipo() == TipoUh.IMOVEL_COMPLETO) {
+            imovelRepository.findFirstByTipoAndStatusAndStatusGovernancaOrderByNome(TipoUh.CASA, StatusImovel.ATIVO,
+                    StatusGovernanca.MANUTENCAO).ifPresent(casa -> {
+                throw new RegraDeNegocioException("RF-35", "O imóvel completo inclui a UH '" + casa.getNome()
+                        + "', que está em manutenção.");
+            });
+        } else {
+            imovelRepository.findFirstByTipo(TipoUh.IMOVEL_COMPLETO)
+                    .filter(completo -> completo.getStatusGovernanca() == StatusGovernanca.MANUTENCAO)
+                    .ifPresent(completo -> {
+                        throw new RegraDeNegocioException("RF-35", "O imóvel completo '" + completo.getNome()
+                                + "', que inclui esta UH, está em manutenção.");
+                    });
+        }
     }
 
     private static boolean mesmoId(UUID atual, UUID novo) {

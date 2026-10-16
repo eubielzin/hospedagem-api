@@ -301,6 +301,10 @@ A UH (unidade habitacional) é o **imóvel**: não há entidade separada. O imó
 - **Governança:** o banco guarda só `LIVRE`, `SUJA` ou `MANUTENCAO`. `OCUPADA` é calculada pelas
   reservas `HOSPEDADO` (com o imóvel completo hospedado, todas as casas saem `OCUPADA`) e não muda
   à mão (`422` `RN-07`). `BLOQUEADA` entra com os bloqueios.
+- **Manutenção bloqueia reserva nova (`422` `RF-35`):** UH em `MANUTENCAO` não recebe reserva nem
+  pode ser o destino de uma reserva editada. Vale nos dois sentidos do RN-02: com uma casa em
+  manutenção o imóvel completo não é reservado, e com o imóvel completo em manutenção nenhuma casa é.
+  Reservas que já estavam na UH continuam editáveis.
 - **Horários:** `horarioCheckin`/`horarioCheckout` do imóvel são opcionais. Sem eles vale o padrão
   da tabela `configuracao` (14:00 e 12:00), e a resposta já traz o horário efetivo.
 - **Imóvel completo sem endereço:** recebe o da primeira casa cadastrada. Casas exigem logradouro,
@@ -345,7 +349,7 @@ A resposta traz também `codigo` (`CM-1001`, `CM-1002`...), `uhNome`, `titularNo
 - **Conflito (`409`):** a UH não pode ter duas reservas `RESERVADO` ou `HOSPEDADO` que se cruzem.
   Reservas canceladas liberam o período. A verificação bloqueia a linha do imóvel, então duas
   criações simultâneas para o mesmo período resultam em uma reserva e um `409`.
-- **Regras (`422`):** saída depois da entrada; imóvel `ATIVO` (`RN-15`); adultos até a
+- **Regras (`422`):** saída depois da entrada; imóvel `ATIVO` (`RN-15`); UH fora de manutenção (`RF-35`); adultos até a
   `capacidadeAdultos` e crianças até a `capacidadeCriancas` do imóvel (`RN-13`); hóspede e canal ativos (na edição, manter um que foi inativado
   depois é permitido).
 - **Ciclo de vida:** `RESERVADO` → `HOSPEDADO` → `CHECKOUT_REALIZADO`, ou `RESERVADO` →

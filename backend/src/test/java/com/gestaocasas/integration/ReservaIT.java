@@ -227,6 +227,63 @@ class ReservaIT {
                 .andExpect(status().isNotFound());
     }
 
+    private void governanca(String uh, String status) throws Exception {
+        mockMvc.perform(patch("/uhs/{id}/governanca", uh).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"%s\"}".formatted(status)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void uhEmManutencaoNaoRecebeReservaNova() throws Exception {
+        String casa = imovel("Casa Reforma");
+        String outra = imovel("Casa Vizinha");
+        String hospede = hospede("Hóspede Manutenção", "12345678062");
+        String direto = canal("Direto (recepção)");
+        LocalDate entrada = HOJE.plusDays(300);
+
+        // Reserva feita antes da manutenção continua editável.
+        String existente = criar("/reservas", reserva(casa, hospede, direto, entrada, entrada.plusDays(2), 2));
+        governanca(casa, "MANUTENCAO");
+
+        mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
+                        .content(reserva(casa, hospede, direto, entrada.plusDays(10), entrada.plusDays(12), 2)))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.codigo").value("RF-35"))
+                .andExpect(jsonPath("$.message").value("A UH 'Casa Reforma' está em manutenção."));
+        mockMvc.perform(put("/reservas/{id}", existente).contentType(MediaType.APPLICATION_JSON)
+                        .content(reserva(casa, hospede, direto, entrada, entrada.plusDays(3), 2)))
+                .andExpect(status().isOk());
+        // Mover outra reserva para a UH em manutenção também é recusado.
+        String naVizinha = criar("/reservas", reserva(outra, hospede, direto, entrada.plusDays(20), entrada.plusDays(21), 1));
+        mockMvc.perform(put("/reservas/{id}", naVizinha).contentType(MediaType.APPLICATION_JSON)
+                        .content(reserva(casa, hospede, direto, entrada.plusDays(20), entrada.plusDays(21), 1)))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.codigo").value("RF-35"));
+
+        // RN-02: o imóvel completo inclui a casa em manutenção.
+        String completo = criar("/imoveis", """
+                {"nome": "Pousada Inteira", "tipo": "IMOVEL_COMPLETO", "capacidadeAdultos": 20, "quartos": 10,
+                 "banheiros": 5, "camas": 20, "valorBaseDiaria": 0}""");
+        mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
+                        .content(reserva(completo, hospede, direto, entrada.plusDays(40), entrada.plusDays(42), 2)))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.message")
+                        .value("O imóvel completo inclui a UH 'Casa Reforma', que está em manutenção."));
+
+        // Liberada pela governança, volta a receber reservas.
+        governanca(casa, "LIVRE");
+        criar("/reservas", reserva(casa, hospede, direto, entrada.plusDays(10), entrada.plusDays(12), 2));
+
+        // E no outro sentido: com o imóvel completo em manutenção, as casas não recebem reserva nova.
+        governanca(completo, "MANUTENCAO");
+        mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
+                        .content(reserva(outra, hospede, direto, entrada.plusDays(50), entrada.plusDays(51), 1)))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.message")
+                        .value("O imóvel completo 'Pousada Inteira', que inclui esta UH, está em manutenção."));
+        governanca(completo, "LIVRE");
+    }
+
     @Test
     void reservasSimultaneasParaOMesmoPeriodoCriamSoUma() throws Exception {
         String casa = imovel("Casa Concorrida");
