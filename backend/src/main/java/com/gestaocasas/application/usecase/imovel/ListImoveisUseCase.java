@@ -4,6 +4,7 @@ import com.gestaocasas.application.dto.ImovelResumoResponse;
 import com.gestaocasas.application.dto.PageResponse;
 import com.gestaocasas.application.mapper.ImovelMapper;
 import com.gestaocasas.domain.entity.Imovel;
+import com.gestaocasas.domain.enums.StatusGovernanca;
 import com.gestaocasas.domain.enums.StatusImovel;
 import com.gestaocasas.domain.repository.ImovelRepository;
 import org.springframework.data.domain.Pageable;
@@ -28,7 +29,11 @@ public class ListImoveisUseCase {
     @Transactional(readOnly = true)
     public PageResponse<ImovelResumoResponse> execute(StatusImovel status, String nome, Pageable pageable) {
         List<Specification<Imovel>> filtros = new ArrayList<>();
-        if (status != null) {
+        if (status == StatusImovel.MANUTENCAO) {
+            // Forma antiga: a manutenção agora é da governança.
+            filtros.add((root, query, cb) -> cb.and(cb.equal(root.get("status"), StatusImovel.ATIVO),
+                    cb.equal(root.get("statusGovernanca"), StatusGovernanca.MANUTENCAO)));
+        } else if (status != null) {
             filtros.add((root, query, cb) -> cb.equal(root.get("status"), status));
         }
         if (nome != null && !nome.isBlank()) {

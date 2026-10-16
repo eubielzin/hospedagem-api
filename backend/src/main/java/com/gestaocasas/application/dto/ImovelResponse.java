@@ -1,6 +1,7 @@
 package com.gestaocasas.application.dto;
 
 import com.gestaocasas.domain.enums.StatusImovel;
+import com.gestaocasas.domain.enums.TipoUh;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+/** capacidadeMaxima = adultos + crianças. Os horários já vêm com o padrão da configuração aplicado. */
 public record ImovelResponse(
         UUID id,
         String nome,
@@ -20,7 +22,11 @@ public record ImovelResponse(
         String cidade,
         String uf,
         String cep,
+        TipoUh tipo,
+        UUID categoriaId,
         Integer capacidadeMaxima,
+        Integer capacidadeAdultos,
+        Integer capacidadeCriancas,
         Integer quartos,
         Integer banheiros,
         Integer camas,

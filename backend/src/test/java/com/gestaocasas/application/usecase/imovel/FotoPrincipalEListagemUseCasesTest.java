@@ -2,7 +2,6 @@ package com.gestaocasas.application.usecase.imovel;
 
 import com.gestaocasas.ImovelFixtures;
 import com.gestaocasas.application.dto.ImovelFotoResponse;
-import com.gestaocasas.application.mapper.ImovelMapperImpl;
 import com.gestaocasas.domain.entity.ImovelFoto;
 import com.gestaocasas.domain.enums.StatusImovel;
 import com.gestaocasas.domain.exception.ImovelFotoNotFoundException;
@@ -40,7 +39,7 @@ class FotoPrincipalEListagemUseCasesTest {
     private final UUID fotoId = UUID.randomUUID();
 
     private DefinirFotoPrincipalUseCase definirPrincipal() {
-        return new DefinirFotoPrincipalUseCase(imovelRepository, fotoRepository, new ImovelMapperImpl());
+        return new DefinirFotoPrincipalUseCase(imovelRepository, fotoRepository, ImovelFixtures.mapper());
     }
 
     private static ImovelFoto foto(String url, int ordem, boolean principal) {
@@ -99,7 +98,7 @@ class FotoPrincipalEListagemUseCasesTest {
                         foto("https://exemplo.com/1.jpg", 1, false)));
 
         List<ImovelFotoResponse> fotos = new ListarFotosImovelUseCase(imovelRepository, fotoRepository,
-                new ImovelMapperImpl()).execute(imovelId);
+                ImovelFixtures.mapper()).execute(imovelId);
 
         assertThat(fotos).extracting(ImovelFotoResponse::ordem).containsExactly(0, 1);
         assertThat(fotos).extracting(ImovelFotoResponse::principal).containsExactly(true, false);
@@ -110,6 +109,6 @@ class FotoPrincipalEListagemUseCasesTest {
         when(imovelRepository.existsById(imovelId)).thenReturn(false);
 
         assertThatThrownBy(() -> new ListarFotosImovelUseCase(imovelRepository, fotoRepository,
-                new ImovelMapperImpl()).execute(imovelId)).isInstanceOf(ImovelNotFoundException.class);
+                ImovelFixtures.mapper()).execute(imovelId)).isInstanceOf(ImovelNotFoundException.class);
     }
 }

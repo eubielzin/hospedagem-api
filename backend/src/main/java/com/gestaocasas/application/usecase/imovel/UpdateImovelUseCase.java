@@ -16,19 +16,18 @@ public class UpdateImovelUseCase {
 
     private final ImovelRepository repository;
     private final ImovelMapper mapper;
+    private final PreenchedorImovel preenchedor;
 
-    public UpdateImovelUseCase(ImovelRepository repository, ImovelMapper mapper) {
+    public UpdateImovelUseCase(ImovelRepository repository, ImovelMapper mapper, PreenchedorImovel preenchedor) {
         this.repository = repository;
         this.mapper = mapper;
+        this.preenchedor = preenchedor;
     }
 
     @Transactional
     public ImovelResponse execute(UUID id, ImovelRequest request) {
-        Imovel imovel = repository.findById(id).orElseThrow(() -> new ImovelNotFoundException(id));
-        mapper.updateEntity(request, imovel);
-        if (request.status() != null) {
-            imovel.setStatus(request.status());
-        }
+        Imovel imovel = repository.findByIdForUpdate(id).orElseThrow(() -> new ImovelNotFoundException(id));
+        preenchedor.preencher(request, imovel);
         return mapper.toResponse(repository.saveAndFlush(imovel));
     }
 }

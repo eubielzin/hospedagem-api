@@ -3,7 +3,6 @@ package com.gestaocasas.application.usecase.imovel;
 import com.gestaocasas.ImovelFixtures;
 import com.gestaocasas.application.dto.ImovelFotoRequest;
 import com.gestaocasas.application.dto.ImovelFotoResponse;
-import com.gestaocasas.application.mapper.ImovelMapperImpl;
 import com.gestaocasas.domain.entity.Imovel;
 import com.gestaocasas.domain.entity.ImovelFoto;
 import com.gestaocasas.domain.enums.StatusImovel;
@@ -38,7 +37,7 @@ class ImovelFotoUseCasesTest {
     private final UUID imovelId = UUID.randomUUID();
 
     private AddImovelFotoUseCase addUseCase() {
-        return new AddImovelFotoUseCase(imovelRepository, fotoRepository, new ImovelMapperImpl());
+        return new AddImovelFotoUseCase(imovelRepository, fotoRepository, ImovelFixtures.mapper());
     }
 
     @Test

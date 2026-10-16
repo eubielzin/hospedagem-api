@@ -69,6 +69,7 @@ cp .env.example .env
 | `SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE` | não | Limite por arquivo. Padrão: `5MB` |
 | `SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE` | não | Limite da requisição de upload. Padrão: `6MB` |
 | `PRODUTOS_BUSCA_LIMITE_MAXIMO` | não | Teto de resultados da busca dinâmica de produtos. Padrão: `50` |
+| `DEMO_SEED` | não | `true` cria dados sintéticos de demonstração (RN-16: categorias, 6 casas, imóvel completo e tarifas) na subida, só se não houver nenhum imóvel. Nunca em produção. Padrão: `false` |
 
 ## Testes
 
@@ -157,6 +158,14 @@ Toda resposta segue o envelope `{ "success", "message", "data" }`; erros de vali
 | PATCH | `/hospedes/{id}/inativar` | Inativa 🔐 |
 | PATCH | `/hospedes/{id}/reativar` | Reativa 🔐 |
 | GET | `/hospedes/{id}/historico` | Reservas em que o hóspede é titular 🔐 |
+| GET | `/uhs` | UHs (imóveis) com o status de governança calculado 🔐 |
+| PATCH | `/uhs/{id}/governanca` | Define `LIVRE`, `SUJA` ou `MANUTENCAO` (422 `RN-07` se ocupada) 🔐 |
+| GET | `/categorias` | Lista as categorias de UH 🔐 |
+| POST | `/categorias` | Cadastra uma categoria 🔐 |
+| PUT | `/categorias/{id}` | Atualiza nome, nível e descrição 🔐 |
+| GET | `/tarifas` | Lista as tarifas, por início 🔐 |
+| POST | `/tarifas` | Cadastra uma tarifa 🔐 |
+| PUT | `/tarifas/{id}` | Atualiza uma tarifa 🔐 |
 | GET | `/reservas?busca=&status=&canalId=&inicio=&fim=` | Lista reservas, da entrada mais recente para a mais antiga 🔐 |
 | GET | `/reservas/{id}` | Consulta uma reserva 🔐 |
 | POST | `/reservas` | Cria uma reserva (status `RESERVADO`) 🔐 |
@@ -276,10 +285,42 @@ observações alimentares, que ainda não existem na API.
 - **LGPD:** todas as rotas exigem token. A API devolve o documento completo; mascarar na
   listagem é tarefa da tela.
 
+## UHs, categorias, tarifas e governança
+
+A UH (unidade habitacional) é o **imóvel**: não há entidade separada. O imóvel ganhou:
+
+| Campo | Observação |
+|---|---|
+| `tipo` | `CASA` ou `IMOVEL_COMPLETO`. Só pode haver um imóvel completo (`409` no segundo); uma UH com reservas ativas não muda de tipo (`422`) |
+| `categoriaId` | Categoria da UH (RF-30); a tarifa é por categoria |
+| `capacidadeAdultos`, `capacidadeCriancas` | RN-13. `capacidadeMaxima` passou a ser calculada (a soma) e não é mais gravada |
+| `statusGovernanca` | Só em `GET /uhs`, já calculado |
+
+- **Status do imóvel:** só `ATIVO` e `INATIVO`. O antigo `MANUTENCAO` virou governança: na
+  migração V12, imóvel `MANUTENCAO` passou a `ATIVO` com governança `MANUTENCAO`.
+- **Governança:** o banco guarda só `LIVRE`, `SUJA` ou `MANUTENCAO`. `OCUPADA` é calculada pelas
+  reservas `HOSPEDADO` (com o imóvel completo hospedado, todas as casas saem `OCUPADA`) e não muda
+  à mão (`422` `RN-07`). `BLOQUEADA` entra com os bloqueios.
+- **Horários:** `horarioCheckin`/`horarioCheckout` do imóvel são opcionais. Sem eles vale o padrão
+  da tabela `configuracao` (14:00 e 12:00), e a resposta já traz o horário efetivo.
+- **Imóvel completo sem endereço:** recebe o da primeira casa cadastrada. Casas exigem logradouro,
+  cidade e UF.
+- **Tarifas:** `fim` é a última noite (inclusive); `fim >= inicio`, `valorDiaria > 0` e
+  `estadiaMinima >= 1` (`400` por campo). Tarifas da mesma categoria podem se sobrepor: em cada
+  noite vale a de período mais curto.
+- **Erros de regra (`422`)** trazem o campo `codigo` (`RN-07`, `RN-13`, `RN-15`...) quando a regra é
+  do levantamento; a `message` não repete o código.
+
+**Compatibilidade com o front em produção** (remover quando ele for atualizado): o imóvel ainda
+aceita `capacidadeMaxima` sem `capacidadeAdultos` (vira capacidade de adultos; na edição, a de
+crianças atual é mantida enquanto couber no total) e `status: "MANUTENCAO"` (vira `ATIVO` +
+governança `MANUTENCAO`, inclusive no filtro `GET /imoveis?status=MANUTENCAO`). Campos da UH que
+não vierem na edição ficam como estão.
+
 ## Reservas
 
 A UH (unidade habitacional) de uma reserva é o **imóvel**: `uhId` é o id do imóvel e `uhNome`, o
-nome dele. Não existem categorias de UH nem tarifas; o valor total é informado na reserva.
+nome dele. O valor total ainda é informado na reserva; a cotação pelas tarifas é a próxima etapa.
 
 ```json
 POST /reservas
@@ -304,8 +345,8 @@ A resposta traz também `codigo` (`CM-1001`, `CM-1002`...), `uhNome`, `titularNo
 - **Conflito (`409`):** a UH não pode ter duas reservas `RESERVADO` ou `HOSPEDADO` que se cruzem.
   Reservas canceladas liberam o período. A verificação bloqueia a linha do imóvel, então duas
   criações simultâneas para o mesmo período resultam em uma reserva e um `409`.
-- **Regras (`422`):** saída depois da entrada; imóvel `ATIVO`; adultos + crianças até a
-  `capacidadeMaxima` do imóvel; hóspede e canal ativos (na edição, manter um que foi inativado
+- **Regras (`422`):** saída depois da entrada; imóvel `ATIVO` (`RN-15`); adultos até a
+  `capacidadeAdultos` e crianças até a `capacidadeCriancas` do imóvel (`RN-13`); hóspede e canal ativos (na edição, manter um que foi inativado
   depois é permitido).
 - **Ciclo de vida:** `RESERVADO` → `HOSPEDADO` → `CHECKOUT_REALIZADO`, ou `RESERVADO` →
   `CANCELADA`. Só `RESERVADO` pode ser editada ou cancelada. O check-in só é aceito a partir da
@@ -808,6 +849,7 @@ mudanças de schema entram em um novo arquivo `V<n>__descricao.sql`. O Hibernate
 | V9 | Usuários |
 | V10 | Hóspedes |
 | V11 | Canais (com os 4 iniciais) e reservas |
+| V12 | Configuração da pousada, categorias de UH, tarifas; tipo, categoria, capacidades e governança no imóvel |
 
 ## Deploy no Render
 

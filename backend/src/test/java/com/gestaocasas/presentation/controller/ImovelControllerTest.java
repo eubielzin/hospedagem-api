@@ -4,6 +4,7 @@ import com.gestaocasas.application.dto.ImovelResponse;
 import com.gestaocasas.application.dto.PageResponse;
 import com.gestaocasas.application.usecase.imovel.*;
 import com.gestaocasas.domain.enums.StatusImovel;
+import com.gestaocasas.domain.enums.TipoUh;
 import com.gestaocasas.domain.exception.ImovelNotFoundException;
 import com.gestaocasas.infrastructure.config.CorsConfig;
 import com.gestaocasas.infrastructure.config.GlobalExceptionHandler;
@@ -77,7 +78,7 @@ class ImovelControllerTest {
 
     private static ImovelResponse response(UUID id) {
         return new ImovelResponse(id, "Casa da Praia", null, "Rua das Conchas", null, null, null, "Ubatuba", "SP",
-                null, 8, 3, 2, 5, new BigDecimal("450.00"), LocalTime.of(15, 0), LocalTime.of(11, 0),
+                null, TipoUh.CASA, null, 8, 6, 2, 3, 2, 5, new BigDecimal("450.00"), LocalTime.of(15, 0), LocalTime.of(11, 0),
                 StatusImovel.ATIVO, Set.of("Wi-Fi"), List.of(), Instant.now(), Instant.now());
     }
 
@@ -117,8 +118,30 @@ class ImovelControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("nome", "uf", "cep",
-                        "capacidadeMaxima", "quartos", "valorBaseDiaria", "horarioCheckout")));
+                        "capacidadeMaxima", "quartos", "valorBaseDiaria")));
         verifyNoInteractions(createImovel);
+    }
+
+    @Test
+    void casaExigeEnderecoECapacidade() throws Exception {
+        mockMvc.perform(post("/imoveis").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"nome": "Casa", "quartos": 1, "banheiros": 1, "camas": 1, "valorBaseDiaria": 0,
+                         "capacidadeCriancas": -1}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("logradouro", "cidade", "uf",
+                        "capacidadeAdultos", "capacidadeCriancas")));
+        verifyNoInteractions(createImovel);
+    }
+
+    @Test
+    void imovelCompletoSemEnderecoPassaNaValidacao() throws Exception {
+        when(createImovel.execute(any())).thenReturn(response(UUID.randomUUID()));
+
+        mockMvc.perform(post("/imoveis").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"nome": "Imóvel completo", "tipo": "IMOVEL_COMPLETO", "capacidadeAdultos": 20,
+                         "capacidadeCriancas": 10, "quartos": 12, "banheiros": 6, "camas": 20,
+                         "valorBaseDiaria": 0}"""))
+                .andExpect(status().isCreated());
     }
 
     @Test

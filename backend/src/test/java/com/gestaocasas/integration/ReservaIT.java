@@ -132,7 +132,8 @@ class ReservaIT {
         mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
                         .content(reserva(casa, hospede, direto, entrada.plusDays(10), entrada.plusDays(12), 5)))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.message").value("A UH 'Casa Amizade' comporta no máximo 4 pessoas"));
+                .andExpect(jsonPath("$.codigo").value("RN-13"))
+                .andExpect(jsonPath("$.message").value("A UH 'Casa Amizade' comporta 4 adultos e 0 crianças."));
         mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
                         .content(reserva(casa, hospede, direto, entrada, entrada, 2)))
                 .andExpect(status().isUnprocessableContent());

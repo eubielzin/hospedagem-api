@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -40,6 +41,15 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID>, JpaSpec
             """, nativeQuery = true)
     Optional<Reserva> findConflito(@Param("imovelId") UUID imovelId, @Param("checkin") LocalDate checkin,
                                    @Param("checkout") LocalDate checkout, @Param("ignorarId") UUID ignorarId);
+
+    /** Imóveis com hóspede na casa agora: a governança os mostra como OCUPADA. */
+    @Query("select distinct r.imovel.id from Reserva r where r.status = com.gestaocasas.domain.enums.StatusReserva.HOSPEDADO")
+    Set<UUID> findImoveisHospedados();
+
+    /** Reservas que ainda vão ocupar ou ocupam o imóvel (reservadas ou hospedadas). */
+    @Query("select count(r) > 0 from Reserva r where r.imovel.id = :imovelId and r.status in "
+            + "(com.gestaocasas.domain.enums.StatusReserva.RESERVADO, com.gestaocasas.domain.enums.StatusReserva.HOSPEDADO)")
+    boolean existeAtivaNoImovel(@Param("imovelId") UUID imovelId);
 
     @Query(value = "SELECT nextval('reserva_codigo_seq')", nativeQuery = true)
     long proximoNumero();

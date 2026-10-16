@@ -54,12 +54,11 @@ public class PreenchedorReserva {
         Imovel imovel = imovelRepository.findByIdForUpdate(request.uhId())
                 .orElseThrow(() -> new ImovelNotFoundException(request.uhId()));
         if (imovel.getStatus() != StatusImovel.ATIVO) {
-            throw new RegraDeNegocioException("A UH '" + imovel.getNome() + "' não está disponível para reservas ("
-                    + imovel.getStatus() + ")");
+            throw new RegraDeNegocioException("RN-15", "A UH '" + imovel.getNome() + "' está inativa.");
         }
-        if (request.adultos() + criancas > imovel.getCapacidadeMaxima()) {
-            throw new RegraDeNegocioException("A UH '" + imovel.getNome() + "' comporta no máximo "
-                    + imovel.getCapacidadeMaxima() + " pessoas");
+        if (request.adultos() > imovel.getCapacidadeAdultos() || criancas > imovel.getCapacidadeCriancas()) {
+            throw new RegraDeNegocioException("RN-13", "A UH '" + imovel.getNome() + "' comporta "
+                    + imovel.getCapacidadeAdultos() + " adultos e " + imovel.getCapacidadeCriancas() + " crianças.");
         }
 
         Hospede titular = hospedeRepository.findById(request.titularId())

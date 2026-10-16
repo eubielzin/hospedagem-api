@@ -5,6 +5,9 @@ server:
   forward-headers-strategy: framework
 
 app:
+  demo:
+    # Cria dados sintéticos de demonstração (RN-16) na subida, só se não houver imóvel cadastrado.
+    seed: ${DEMO_SEED:false}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
   auth:
@@ -79,6 +82,10 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+        type:
+          # Horários (LocalTime) e datas vão ao banco como estão, sem conversão pelo fuso da JVM: com
+          # time_zone UTC e a JVM em -03, "15:00" era gravado como 18:00.
+          java_time_use_direct_jdbc: true
 
   data:
     web:

@@ -50,7 +50,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RegraDeNegocioException.class)
     public ResponseEntity<ApiError> handleRegraDeNegocio(RegraDeNegocioException ex) {
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(ApiError.of(ex.getMessage()));
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                .body(ApiError.regra(ex.getCodigo(), ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -1,7 +1,6 @@
 package com.gestaocasas.application.usecase.imovel;
 
 import com.gestaocasas.ImovelFixtures;
-import com.gestaocasas.application.mapper.ImovelMapperImpl;
 import com.gestaocasas.domain.entity.Imovel;
 import com.gestaocasas.domain.enums.StatusImovel;
 import com.gestaocasas.domain.exception.ImovelNotFoundException;
@@ -34,7 +33,7 @@ class InativarImovelUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new InativarImovelUseCase(repository, new ImovelMapperImpl());
+        useCase = new InativarImovelUseCase(repository, ImovelFixtures.mapper());
     }
 
     @Test

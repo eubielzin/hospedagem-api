@@ -1,12 +1,21 @@
 package com.gestaocasas.application.dto;
 
+import com.gestaocasas.application.validation.ImovelValido;
 import com.gestaocasas.domain.enums.StatusImovel;
+import com.gestaocasas.domain.enums.TipoUh;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Set;
+import java.util.UUID;
 
+/**
+ * Campos novos da UH (tipo, categoriaId, capacidades) são opcionais: ausentes na edição, ficam como estão,
+ * para o front que ainda não os conhece não apagá-los. Endereço, cidade e UF só são exigidos de casas;
+ * o imóvel completo sem endereço recebe o da pousada (o da primeira casa cadastrada).
+ */
+@ImovelValido
 public record ImovelRequest(
         @NotBlank(message = "Nome é obrigatório")
         @Size(max = 120, message = "Nome deve ter no máximo 120 caracteres")
@@ -15,7 +24,6 @@ public record ImovelRequest(
         @Size(max = 5000, message = "Descrição deve ter no máximo 5000 caracteres")
         String descricao,
 
-        @NotBlank(message = "Logradouro é obrigatório")
         @Size(max = 200, message = "Logradouro deve ter no máximo 200 caracteres")
         String logradouro,
 
@@ -28,18 +36,26 @@ public record ImovelRequest(
         @Size(max = 100, message = "Bairro deve ter no máximo 100 caracteres")
         String bairro,
 
-        @NotBlank(message = "Cidade é obrigatória")
         @Size(max = 100, message = "Cidade deve ter no máximo 100 caracteres")
         String cidade,
 
-        @NotNull(message = "UF é obrigatória")
         @Pattern(regexp = "[A-Za-z]{2}", message = "UF deve ter 2 letras")
         String uf,
 
         @Pattern(regexp = "\\d{5}-?\\d{3}", message = "CEP inválido")
         String cep,
 
-        @NotNull(message = "Capacidade máxima é obrigatória")
+        TipoUh tipo,
+
+        UUID categoriaId,
+
+        @Min(value = 1, message = "A UH precisa comportar ao menos 1 adulto")
+        Integer capacidadeAdultos,
+
+        @Min(value = 0, message = "Capacidade de crianças não pode ser negativa")
+        Integer capacidadeCriancas,
+
+        /** Forma antiga, só com o total: usada quando capacidadeAdultos não vem. */
         @Positive(message = "Capacidade máxima deve ser maior que zero")
         Integer capacidadeMaxima,
 
@@ -60,10 +76,9 @@ public record ImovelRequest(
         @Digits(integer = 10, fraction = 2, message = "Valor-base da diária deve ter no máximo 2 casas decimais")
         BigDecimal valorBaseDiaria,
 
-        @NotNull(message = "Horário de check-in é obrigatório")
+        /** Nulo: vale o horário padrão da configuração. */
         LocalTime horarioCheckin,
 
-        @NotNull(message = "Horário de check-out é obrigatório")
         LocalTime horarioCheckout,
 
         StatusImovel status,

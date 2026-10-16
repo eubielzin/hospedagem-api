@@ -1,7 +1,6 @@
 package com.gestaocasas.application.usecase.imovel;
 
 import com.gestaocasas.ImovelFixtures;
-import com.gestaocasas.application.mapper.ImovelMapperImpl;
 import com.gestaocasas.domain.enums.StatusImovel;
 import com.gestaocasas.domain.exception.ImovelNotFoundException;
 import com.gestaocasas.domain.repository.ImovelRepository;
@@ -30,7 +29,7 @@ class GetImovelByIdUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new GetImovelByIdUseCase(repository, new ImovelMapperImpl());
+        useCase = new GetImovelByIdUseCase(repository, ImovelFixtures.mapper());
     }
 
     @Test

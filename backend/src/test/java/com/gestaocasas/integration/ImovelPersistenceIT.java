@@ -4,6 +4,7 @@ import com.gestaocasas.ImagemFixtures;
 import com.gestaocasas.domain.exception.StorageException;
 import com.gestaocasas.domain.storage.StoragePort;
 import com.gestaocasas.domain.storage.StorageUploadResult;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -26,6 +27,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -114,7 +118,7 @@ class ImovelPersistenceIT {
 
         Integer migracoes = jdbc.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class);
-        assertThat(migracoes).isEqualTo(11);
+        assertThat(migracoes).isEqualTo(12);
     }
 
     @Test
@@ -143,7 +147,10 @@ class ImovelPersistenceIT {
                         .content(imovelJson("Casa Atualizada", "MANUTENCAO").replace("\"Piscina\"", "\"Sauna\"")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nome").value("Casa Atualizada"))
-                .andExpect(jsonPath("$.data.status").value("MANUTENCAO"));
+                // Forma antiga: a manutenção passa para a governança.
+                .andExpect(jsonPath("$.data.status").value("ATIVO"));
+        assertThat(jdbc.queryForObject("SELECT status_governanca FROM imovel WHERE id = ?", String.class, id))
+                .isEqualTo("MANUTENCAO");
 
         assertThat(jdbc.queryForList("SELECT comodidade FROM imovel_comodidade WHERE imovel_id = ?",
                 String.class, id)).containsExactlyInAnyOrder("Wi-Fi", "Sauna");
@@ -356,20 +363,56 @@ class ImovelPersistenceIT {
     @Test
     void bancoRejeitaDadosQueViolamConstraints() {
         String insert = """
-                INSERT INTO imovel (id, nome, logradouro, cidade, uf, capacidade_maxima, quartos, banheiros, camas,
-                                    valor_base_diaria, horario_checkin, horario_checkout, status, criado_em, atualizado_em)
-                VALUES (gen_random_uuid(), 'X', 'Rua', 'Cidade', ?, ?, 1, 1, 1, ?, '15:00', '11:00', ?, now(), now())
+                INSERT INTO imovel (id, nome, logradouro, cidade, uf, tipo, capacidade_adultos, capacidade_criancas,
+                                    quartos, banheiros, camas, valor_base_diaria, status, status_governanca,
+                                    criado_em, atualizado_em)
+                VALUES (gen_random_uuid(), 'X', 'Rua', 'Cidade', ?, ?, ?, 0, 1, 1, 1, ?, ?, ?, now(), now())
                 """;
 
-        assertThatThrownBy(() -> jdbc.update(insert, "SP", 0, 100, "ATIVO"))
+        assertThatThrownBy(() -> jdbc.update(insert, "SP", "CASA", 0, 100, "ATIVO", "LIVRE"))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update(insert, "SP", 4, -1, "ATIVO"))
+        assertThatThrownBy(() -> jdbc.update(insert, "SP", "CASA", 4, -1, "ATIVO", "LIVRE"))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update(insert, "SP", 4, 100, "VENDIDO"))
+        assertThatThrownBy(() -> jdbc.update(insert, "SP", "CASA", 4, 100, "VENDIDO", "LIVRE"))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update(insert, "sp", 4, 100, "ATIVO"))
+        // MANUTENCAO saiu do status do imóvel; OCUPADA e BLOQUEADA nunca são gravadas.
+        assertThatThrownBy(() -> jdbc.update(insert, "SP", "CASA", 4, 100, "MANUTENCAO", "LIVRE"))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(jdbc.update(insert, "SP", 4, 100, "ATIVO")).isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update(insert, "SP", "CASA", 4, 100, "ATIVO", "OCUPADA"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(insert, "SP", "CHALE", 4, 100, "ATIVO", "LIVRE"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update(insert, "sp", "CASA", 4, 100, "ATIVO", "LIVRE"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbc.update(insert, "SP", "CASA", 4, 100, "ATIVO", "LIVRE")).isEqualTo(1);
+        // Só um imóvel completo.
+        assertThat(jdbc.update(insert, "SP", "IMOVEL_COMPLETO", 4, 100, "ATIVO", "LIVRE")).isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update(insert, "SP", "IMOVEL_COMPLETO", 4, 100, "ATIVO", "LIVRE"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void frontAntigoContinuaCriandoEEditandoImovel() throws Exception {
+        String corpo = mockMvc.perform(post("/imoveis").contentType(MediaType.APPLICATION_JSON).content("""
+                {"nome": "Casa Antiga", "logradouro": "Rua A", "cidade": "Ubatuba", "uf": "SP", "capacidadeMaxima": 4,
+                 "quartos": 2, "banheiros": 1, "camas": 2, "valorBaseDiaria": 300.00,
+                 "horarioCheckin": "15:00", "horarioCheckout": "11:00", "status": "MANUTENCAO"}"""))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(corpo, "$.data.id");
+
+        mockMvc.perform(get("/imoveis/{id}", id))
+                .andExpect(jsonPath("$.data.status").value("ATIVO"))
+                .andExpect(jsonPath("$.data.tipo").value("CASA"))
+                .andExpect(jsonPath("$.data.capacidadeMaxima").value(4))
+                .andExpect(jsonPath("$.data.capacidadeAdultos").value(4))
+                .andExpect(jsonPath("$.data.capacidadeCriancas").value(0))
+                .andExpect(jsonPath("$.data.horarioCheckin").value("15:00:00"));
+        mockMvc.perform(get("/uhs")).andExpect(jsonPath("$.data[?(@.nome == 'Casa Antiga')].statusGovernanca",
+                org.hamcrest.Matchers.contains("MANUTENCAO")));
+        // O filtro antigo por MANUTENCAO encontra a casa pela governança.
+        mockMvc.perform(get("/imoveis").param("status", "MANUTENCAO"))
+                .andExpect(jsonPath("$.data.content[*].nome", hasItem("Casa Antiga")))
+                .andExpect(jsonPath("$.data.content[*].status", everyItem(is("ATIVO"))));
     }
 
     @Test

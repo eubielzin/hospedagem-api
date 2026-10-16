@@ -3,7 +3,6 @@ package com.gestaocasas.application.usecase.imovel;
 import com.gestaocasas.ImagemFixtures;
 import com.gestaocasas.ImovelFixtures;
 import com.gestaocasas.application.dto.ImovelFotoResponse;
-import com.gestaocasas.application.mapper.ImovelMapperImpl;
 import com.gestaocasas.application.validation.ImagemValidator;
 import com.gestaocasas.domain.entity.ImovelFoto;
 import com.gestaocasas.domain.enums.StatusImovel;
@@ -60,7 +59,7 @@ class UploadImagemImovelUseCaseTest {
     @BeforeEach
     void setUp() {
         useCase = new UploadImagemImovelUseCase(imovelRepository, fotoRepository,
-                new ImagemValidator(DataSize.ofMegabytes(5), 8000, 40_000_000L), storage, new ImovelMapperImpl(),
+                new ImagemValidator(DataSize.ofMegabytes(5), 8000, 40_000_000L), storage, ImovelFixtures.mapper(),
                 new TransactionTemplate(mock(PlatformTransactionManager.class)));
     }
 

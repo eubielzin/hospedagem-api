@@ -36,8 +36,19 @@ final class BancoDeTeste {
         }
     }
 
+    record Conexao(String url, String usuario, String senha) {
+    }
+
     /** Cria um banco vazio e aponta a aplicação para ele. Chame a partir de {@code @DynamicPropertySource}. */
     static void registrar(DynamicPropertyRegistry registry) {
+        Conexao conexao = criarBanco();
+        registry.add("DATABASE_URL", conexao::url);
+        registry.add("DATABASE_USERNAME", conexao::usuario);
+        registry.add("DATABASE_PASSWORD", conexao::senha);
+    }
+
+    /** Cria um banco vazio, sem migrações, para testes que conduzem o Flyway por conta própria. */
+    static Conexao criarBanco() {
         Servidor servidor = servidor();
         String banco = "it_" + UUID.randomUUID().toString().replace("-", "");
         try (Connection conexao = DriverManager.getConnection(servidor.url(servidor.bancoAdministrativo()),
@@ -47,9 +58,7 @@ final class BancoDeTeste {
         } catch (SQLException e) {
             throw new IllegalStateException("Não foi possível criar o banco de teste " + banco, e);
         }
-        registry.add("DATABASE_URL", () -> servidor.url(banco));
-        registry.add("DATABASE_USERNAME", servidor::usuario);
-        registry.add("DATABASE_PASSWORD", servidor::senha);
+        return new Conexao(servidor.url(banco), servidor.usuario(), servidor.senha());
     }
 
     private static synchronized Servidor servidor() {
