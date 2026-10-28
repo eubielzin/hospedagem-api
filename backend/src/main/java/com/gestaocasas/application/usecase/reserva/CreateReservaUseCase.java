@@ -14,11 +14,14 @@ public class CreateReservaUseCase {
 
     private final ReservaRepository repository;
     private final PreenchedorReserva preenchedor;
+    private final AcoesReserva acoes;
     private final ReservaMapper mapper;
 
-    public CreateReservaUseCase(ReservaRepository repository, PreenchedorReserva preenchedor, ReservaMapper mapper) {
+    public CreateReservaUseCase(ReservaRepository repository, PreenchedorReserva preenchedor, AcoesReserva acoes,
+                                ReservaMapper mapper) {
         this.repository = repository;
         this.preenchedor = preenchedor;
+        this.acoes = acoes;
         this.mapper = mapper;
     }
 
@@ -28,6 +31,7 @@ public class CreateReservaUseCase {
         preenchedor.preencher(request, reserva);
         reserva.setStatus(StatusReserva.RESERVADO);
         reserva.setCodigo("CM-" + repository.proximoNumero());
+        acoes.registrar(reserva, "Reserva criada (" + reserva.getCanal().getNome() + ") por " + acoes.quem());
         return mapper.toResponse(repository.saveAndFlush(reserva));
     }
 }

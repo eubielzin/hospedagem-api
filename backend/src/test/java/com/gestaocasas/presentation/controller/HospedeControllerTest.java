@@ -69,7 +69,7 @@ class HospedeControllerTest {
 
     private HospedeResponse response(boolean ativo) {
         return new HospedeResponse(id, "Maria da Silva", TipoDocumento.CPF, "52998224725", "Brasileira",
-                "(98) 90000-0000", ativo, Instant.now(), Instant.now());
+                "(98) 90000-0000", null, null, null, null, ativo, Instant.now(), Instant.now());
     }
 
     @Test

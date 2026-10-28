@@ -2,7 +2,7 @@ package com.gestaocasas.presentation.controller;
 
 import com.gestaocasas.application.usecase.reserva.*;
 import com.gestaocasas.domain.enums.StatusReserva;
-import com.gestaocasas.domain.exception.ConflitoException;
+import com.gestaocasas.domain.exception.RegraDeNegocioException;
 import com.gestaocasas.infrastructure.config.CorsConfig;
 import com.gestaocasas.infrastructure.config.GlobalExceptionHandler;
 import com.gestaocasas.infrastructure.config.SecurityConfig;
@@ -52,6 +52,14 @@ class ReservaControllerTest {
     private UpdateReservaUseCase updateReserva;
     @MockitoBean
     private AlterarStatusReservaUseCase alterarStatus;
+    @MockitoBean
+    private EncerrarReservaUseCase encerrarReserva;
+    @MockitoBean
+    private RemanejarReservaUseCase remanejarReserva;
+    @MockitoBean
+    private PreencherFnrhUseCase preencherFnrh;
+    @MockitoBean
+    private CotarReservaUseCase cotarReserva;
 
     @Test
     void repassaOsFiltrosDaTela() throws Exception {
@@ -85,17 +93,44 @@ class ReservaControllerTest {
                         .content("{\"adultos\": 0, \"criancas\": -1, \"valorTotal\": -5}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("uhId", "titularId", "canalId",
-                        "checkin", "checkout", "adultos", "criancas", "valorTotal")));
+                        "checkin", "checkout", "adultos", "criancas")));
         verifyNoInteractions(createReserva);
     }
 
     @Test
-    void conflitoResponde409() throws Exception {
-        when(createReserva.execute(any())).thenThrow(new ConflitoException("A UH 'Casa' já está reservada"));
+    void conflitoResponde422ComOCodigoDaRegra() throws Exception {
+        when(createReserva.execute(any())).thenThrow(new RegraDeNegocioException("RN-01",
+                "Casa Alegria já tem a reserva CM-1001 de 09/10/2026 a 13/10/2026."));
 
         mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON).content(VALIDA))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("A UH 'Casa' já está reservada"));
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.codigo").value("RN-01"))
+                .andExpect(jsonPath("$.message").value("Casa Alegria já tem a reserva CM-1001 de 09/10/2026 a 13/10/2026."));
+    }
+
+    @Test
+    void cotacaoExigeUhEDatas() throws Exception {
+        UUID uh = UUID.randomUUID();
+        mockMvc.perform(get("/reservas/cotacao").param("uhId", uh.toString()).param("checkin", "2027-01-10")
+                        .param("checkout", "2027-01-12"))
+                .andExpect(status().isOk());
+        verify(cotarReserva).execute(uh, LocalDate.of(2027, 1, 10), LocalDate.of(2027, 1, 12));
+
+        mockMvc.perform(get("/reservas/cotacao").param("uhId", uh.toString())).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void encerramentoExigeMotivoEValoresNaoNegativos() throws Exception {
+        UUID id = UUID.randomUUID();
+        mockMvc.perform(post("/reservas/{id}/no-show", id).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motivo\": \" \", \"multa\": -1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("motivo", "multa")));
+        mockMvc.perform(put("/reservas/{id}/fnrh", id).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("cidadeProcedencia", "cidadeDestino",
+                        "motivoViagem", "meioTransporte")));
+        verifyNoInteractions(encerrarReserva, preencherFnrh);
     }
 
     @Test
@@ -110,7 +145,7 @@ class ReservaControllerTest {
 
         verify(alterarStatus).checkin(id);
         verify(alterarStatus).checkout(id);
-        verify(alterarStatus).cancelar(eq(id), eq(null));
+        verify(encerrarReserva).cancelar(eq(id), any());
         verify(updateReserva).execute(eq(id), any());
     }
 

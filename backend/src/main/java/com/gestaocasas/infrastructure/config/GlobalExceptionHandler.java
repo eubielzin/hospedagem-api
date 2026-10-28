@@ -2,6 +2,7 @@ package com.gestaocasas.infrastructure.config;
 
 import com.gestaocasas.application.dto.ApiError;
 import com.gestaocasas.domain.exception.ArquivoInvalidoException;
+import com.gestaocasas.domain.exception.CampoInvalidoException;
 import com.gestaocasas.domain.exception.ConflitoException;
 import com.gestaocasas.domain.exception.CredenciaisInvalidasException;
 import com.gestaocasas.domain.exception.RegraDeNegocioException;
@@ -52,6 +53,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleRegraDeNegocio(RegraDeNegocioException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
                 .body(ApiError.regra(ex.getCodigo(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(CampoInvalidoException.class)
+    public ResponseEntity<ApiError> handleCampoInvalido(CampoInvalidoException ex) {
+        return ResponseEntity.badRequest().body(ApiError.of(ex.getMessage(),
+                List.of(new ApiError.FieldError(ex.getCampo(), ex.getMessage()))));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

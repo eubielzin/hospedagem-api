@@ -34,8 +34,8 @@ public class ListReservasUseCase {
     }
 
     /**
-     * @param busca  parte do nome do hóspede, do código (CM-1546 ou 1546) ou do nome da UH
-     * @param inicio com fim, devolve as reservas cujo período cruza [inicio, fim]
+     * @param busca  parte do nome do hóspede, do código (CM-1546 ou 1546), do código na OTA ou do nome da UH
+     * @param inicio com fim, devolve as reservas que ocupam alguma noite de [inicio, fim]
      */
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
@@ -56,7 +56,7 @@ public class ListReservasUseCase {
                 condicoes.add(cb.equal(canal.get("id"), canalId));
             }
             if (inicio != null) {
-                condicoes.add(cb.greaterThanOrEqualTo(root.get("checkout"), inicio));
+                condicoes.add(cb.greaterThan(root.get("checkout"), inicio));
             }
             if (fim != null) {
                 condicoes.add(cb.lessThanOrEqualTo(root.get("checkin"), fim));
@@ -67,12 +67,14 @@ public class ListReservasUseCase {
                         cb.like(normalizar(cb, titular.get("nome")), padrao, '!'),
                         cb.like(normalizar(cb, imovel.get("nome")), padrao, '!'),
                         cb.like(cb.lower(root.get("codigo")),
+                                "%" + escapeLike(termo.toLowerCase(Locale.ROOT)) + "%", '!'),
+                        cb.like(cb.lower(root.get("codigoExterno")),
                                 "%" + escapeLike(termo.toLowerCase(Locale.ROOT)) + "%", '!')));
             }
             return cb.and(condicoes.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
         return repository.findAll(filtro, Sort.by(Sort.Order.desc("checkin"), Sort.Order.desc("codigo"))).stream()
-                .map(mapper::toResponse)
+                .map(mapper::toResumo)
                 .toList();
     }
 

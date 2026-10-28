@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Reservas contra o PostgreSQL real: conflito de período, filtros, ciclo de vida e concorrência. */
+/** Reservas contra o PostgreSQL real: conflito de período, filtros, ciclo de vida e concorrência (RNF-09). */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(UsuarioAutenticado.class)
@@ -50,11 +50,37 @@ class ReservaIT {
         return JsonPath.read(corpo, "$.data.id");
     }
 
+    private String categoria;
+
+    /** Categoria com diária de 320,00 o ano todo: o valor das reservas vem da cotação. */
+    private String categoria() throws Exception {
+        if (categoria == null) {
+            String corpo = mockMvc.perform(get("/categorias")).andReturn().getResponse().getContentAsString();
+            List<String> ids = JsonPath.read(corpo, "$.data[?(@.nome == 'Categoria Reservas')].id");
+            categoria = ids.isEmpty() ? criar("/categorias", "{\"nome\": \"Categoria Reservas\", \"nivel\": 1}")
+                    : ids.getFirst();
+            if (ids.isEmpty()) {
+                criar("/tarifas", """
+                        {"categoriaId": "%s", "nome": "Tarifa base", "inicio": "%s", "fim": "%s", "valorDiaria": 320.00,
+                         "estadiaMinima": 1, "fechadoChegada": false, "fechadoSaida": false, "vendaFechada": false}"""
+                        .formatted(categoria, HOJE.minusDays(30), HOJE.plusDays(500)));
+            }
+        }
+        return categoria;
+    }
+
     private String imovel(String nome) throws Exception {
         return criar("/imoveis", """
-                {"nome": "%s", "logradouro": "Rua A", "cidade": "Ubatuba", "uf": "SP", "capacidadeMaxima": 4,
-                 "quartos": 2, "banheiros": 1, "camas": 2, "valorBaseDiaria": 300.00,
-                 "horarioCheckin": "15:00", "horarioCheckout": "11:00"}""".formatted(nome));
+                {"nome": "%s", "categoriaId": "%s", "logradouro": "Rua A", "cidade": "Ubatuba", "uf": "SP",
+                 "capacidadeMaxima": 4, "quartos": 2, "banheiros": 1, "camas": 2, "valorBaseDiaria": 300.00,
+                 "horarioCheckin": "15:00", "horarioCheckout": "11:00"}""".formatted(nome, categoria()));
+    }
+
+    private void fnrh(String reserva) throws Exception {
+        mockMvc.perform(put("/reservas/{id}/fnrh", reserva).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"cidadeProcedencia": "São Luís/MA", "cidadeDestino": "Barreirinhas/MA",
+                         "motivoViagem": "LAZER", "meioTransporte": "CARRO"}"""))
+                .andExpect(status().isOk());
     }
 
     private String hospede(String nome, String cpf) throws Exception {
@@ -73,7 +99,7 @@ class ReservaIT {
                                   int adultos) {
         return """
                 {"uhId": "%s", "titularId": "%s", "canalId": "%s", "checkin": "%s", "checkout": "%s",
-                 "adultos": %d, "criancas": 0, "valorTotal": 960.00, "observacoes": " "}"""
+                 "adultos": %d, "criancas": 0, "valorTotal": 1.00, "observacoes": " "}"""
                 .formatted(uh, titular, canal, checkin, checkout, adultos);
     }
 
@@ -101,14 +127,17 @@ class ReservaIT {
                 .andExpect(jsonPath("$.data.titularNome").value("Cecília Tavares"))
                 .andExpect(jsonPath("$.data.canalNome").value("Booking.com"))
                 .andExpect(jsonPath("$.data.status").value("RESERVADO"))
+                // Da cotação, não do corpo: 3 noites de 320,00.
                 .andExpect(jsonPath("$.data.valorTotal").value(960.00))
                 .andExpect(jsonPath("$.data.observacoes").isEmpty());
 
-        // Cruza o período: recusada.
+        // Cruza o período: recusada (RN-01).
         mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
                         .content(reserva(casa, cecilia, booking, entrada.plusDays(2), entrada.plusDays(5), 2)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message", matchesPattern("A UH 'Casa Sabedoria' já está reservada de .* \\(CM-\\d+\\)")));
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.codigo").value("RN-01"))
+                .andExpect(jsonPath("$.message", matchesPattern("Casa Sabedoria já tem a reserva CM-\\d+ de "
+                        + "\\d{2}/\\d{2}/\\d{4} a \\d{2}/\\d{2}/\\d{4}\\.")));
         // Começa no dia da saída da outra: permitida.
         criar("/reservas", reserva(casa, cecilia, booking, entrada.plusDays(3), entrada.plusDays(5), 2));
     }
@@ -125,23 +154,29 @@ class ReservaIT {
                         .content("{\"motivo\": \"Desistência\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELADA"))
-                .andExpect(jsonPath("$.data.motivoCancelamento").value("Desistência"));
+                .andExpect(jsonPath("$.data.motivoCancelamento").value("Desistência"))
+                .andExpect(jsonPath("$.data.encerramento.motivo").value("Desistência"))
+                .andExpect(jsonPath("$.data.encerramento.multa").value(0));
         criar("/reservas", reserva(casa, hospede, direto, entrada, entrada.plusDays(2), 2));
 
-        mockMvc.perform(post("/reservas/{id}/cancelar", id)).andExpect(status().isUnprocessableContent());
+        mockMvc.perform(post("/reservas/{id}/cancelar", id))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.codigo").value("RN-03"));
         mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
                         .content(reserva(casa, hospede, direto, entrada.plusDays(10), entrada.plusDays(12), 5)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.codigo").value("RN-13"))
-                .andExpect(jsonPath("$.message").value("A UH 'Casa Amizade' comporta 4 adultos e 0 crianças."));
+                .andExpect(jsonPath("$.message").value("Casa Amizade comporta 4 adultos e 0 crianças."));
         mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
                         .content(reserva(casa, hospede, direto, entrada, entrada, 2)))
-                .andExpect(status().isUnprocessableContent());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("checkout"));
 
         mockMvc.perform(patch("/imoveis/{id}/inativar", casa)).andExpect(status().isOk());
         mockMvc.perform(post("/reservas").contentType(MediaType.APPLICATION_JSON)
                         .content(reserva(casa, hospede, direto, entrada.plusDays(20), entrada.plusDays(21), 1)))
-                .andExpect(status().isUnprocessableContent());
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.codigo").value("RN-15"));
     }
 
     @Test
@@ -194,12 +229,14 @@ class ReservaIT {
         String futura = criar("/reservas", reserva(casa, comDocumento, direto, HOJE.plusDays(5), HOJE.plusDays(7), 2));
         mockMvc.perform(post("/reservas/{id}/checkin", futura))
                 .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.codigo").value("RN-03"))
                 .andExpect(jsonPath("$.message", matchesPattern("O check-in só pode ser feito a partir de .*")));
 
         String hoje = criar("/reservas", reserva(casa, semDocumento, direto, HOJE, HOJE.plusDays(2), 2));
         mockMvc.perform(post("/reservas/{id}/checkin", hoje))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.message").value("Informe o documento do hóspede 'Sem Documento' antes do check-in"));
+                .andExpect(jsonPath("$.codigo").value("RN-04"))
+                .andExpect(jsonPath("$.message").value("Informe o documento do hóspede titular antes do check-in."));
 
         // Edição troca o titular; a própria reserva não conta como conflito.
         mockMvc.perform(put("/reservas/{id}", hoje).contentType(MediaType.APPLICATION_JSON)
@@ -207,6 +244,10 @@ class ReservaIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.adultos").value(3));
 
+        mockMvc.perform(post("/reservas/{id}/checkin", hoje))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.message").value("Preencha a FNRH antes do check-in."));
+        fnrh(hoje);
         mockMvc.perform(post("/reservas/{id}/checkin", hoje))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("HOSPEDADO"))
@@ -305,7 +346,7 @@ class ReservaIT {
                     }, executor))
                     .toList();
             List<Integer> status = chamadas.stream().map(CompletableFuture::join).toList();
-            assertThat(status).containsOnly(201, 409).filteredOn(s -> s == 201).hasSize(1);
+            assertThat(status).containsOnly(201, 422).filteredOn(s -> s == 201).hasSize(1);
         } finally {
             executor.shutdown();
         }

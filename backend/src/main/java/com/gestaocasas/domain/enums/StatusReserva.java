@@ -1,15 +1,25 @@
 package com.gestaocasas.domain.enums;
 
+/** RN-03: RESERVADO → HOSPEDADO → CHECKOUT_REALIZADO, ou RESERVADO → CANCELADA / NO_SHOW. */
 public enum StatusReserva {
-    RESERVADO,
-    HOSPEDADO,
-    CHECKOUT_REALIZADO,
-    CANCELADA,
-    /** Previsto no contrato do frontend; ainda não há rota que registre no-show. */
-    NO_SHOW;
+    RESERVADO("Reservado"),
+    HOSPEDADO("Hospedado"),
+    CHECKOUT_REALIZADO("Check-out realizado"),
+    CANCELADA("Cancelada"),
+    NO_SHOW("No-show");
 
-    /** Ocupam o imóvel no período: bloqueiam outras reservas. */
-    public boolean ocupaImovel() {
-        return this == RESERVADO || this == HOSPEDADO;
+    private final String rotulo;
+
+    StatusReserva(String rotulo) {
+        this.rotulo = rotulo;
+    }
+
+    public String rotulo() {
+        return rotulo;
+    }
+
+    /** Cancelada e no-show encerram a reserva e liberam a UH; as demais ocupam o período. */
+    public boolean ativa() {
+        return this != CANCELADA && this != NO_SHOW;
     }
 }

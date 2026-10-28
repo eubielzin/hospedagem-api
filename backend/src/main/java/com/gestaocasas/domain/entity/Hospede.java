@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
@@ -36,6 +37,20 @@ public class Hospede {
 
     @Column(name = "telefone", length = 30)
     private String telefone;
+
+    @Column(name = "data_nascimento")
+    private LocalDate dataNascimento;
+
+    @Column(name = "email", length = 254)
+    private String email;
+
+    /** "Cidade/UF" ou "Cidade/País": origem do hóspede nos indicadores quando não há FNRH. */
+    @Column(name = "endereco", length = 150)
+    private String endereco;
+
+    /** Aparece na lista de pessoas do dia (RF-53). */
+    @Column(name = "observacoes_alimentares", length = 500)
+    private String observacoesAlimentares;
 
     @Column(name = "ativo", nullable = false)
     private boolean ativo;

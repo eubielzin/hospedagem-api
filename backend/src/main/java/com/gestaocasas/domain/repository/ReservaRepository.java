@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -26,20 +27,20 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID>, JpaSpec
     List<Reserva> findByTitularIdOrderByCheckinDescCodigoDesc(UUID titularId);
 
     /**
-     * Primeira reserva que ainda ocupa o imóvel (reservada ou hospedada) e cruza o período
-     * [checkin, checkout). Chame com a linha do imóvel bloqueada, para que duas criações
-     * simultâneas não passem as duas pela verificação.
+     * Primeira reserva ativa (nem cancelada nem no-show) em uma das UHs que cruza o período
+     * [checkin, checkout). Chame com as linhas das UHs bloqueadas (ver DisponibilidadeUh), para que duas
+     * gravações simultâneas não passem as duas pela verificação.
      */
     @Query(value = """
             SELECT r.* FROM reserva r
-            WHERE r.imovel_id = :imovelId
-              AND r.status IN ('RESERVADO', 'HOSPEDADO')
+            WHERE r.imovel_id IN (:imovelIds)
+              AND r.status NOT IN ('CANCELADA', 'NO_SHOW')
               AND r.checkin < :checkout AND r.checkout > :checkin
               AND r.id <> :ignorarId
             ORDER BY r.checkin
             LIMIT 1
             """, nativeQuery = true)
-    Optional<Reserva> findConflito(@Param("imovelId") UUID imovelId, @Param("checkin") LocalDate checkin,
+    Optional<Reserva> findConflito(@Param("imovelIds") Collection<UUID> imovelIds, @Param("checkin") LocalDate checkin,
                                    @Param("checkout") LocalDate checkout, @Param("ignorarId") UUID ignorarId);
 
     /** Imóveis com hóspede na casa agora: a governança os mostra como OCUPADA. */

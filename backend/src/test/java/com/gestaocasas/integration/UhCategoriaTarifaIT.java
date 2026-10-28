@@ -97,6 +97,11 @@ class UhCategoriaTarifaIT {
                 .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("nome", "nivel")));
     }
 
+    /** As outras classes de teste também cadastram tarifas: filtra as da categoria. */
+    private static String daCategoria(String categoriaId, String campo) {
+        return "$.data[?(@.categoriaId == '%s')].%s".formatted(categoriaId, campo);
+    }
+
     @Test
     void tarifasOrdenadasPorInicioEValidadas() throws Exception {
         String categoria = categoria("Categoria Tarifas", 1);
@@ -106,10 +111,10 @@ class UhCategoriaTarifaIT {
 
         mockMvc.perform(get("/tarifas"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[*].nome", contains("Tarifa base", "Alta temporada")))
-                .andExpect(jsonPath("$.data[1].categoriaId").value(categoria))
-                .andExpect(jsonPath("$.data[1].valorDiaria").value(620.00))
-                .andExpect(jsonPath("$.data[1].fim").value(HOJE.plusDays(45).toString()));
+                .andExpect(jsonPath(daCategoria(categoria, "nome"), contains("Tarifa base", "Alta temporada")))
+                .andExpect(jsonPath(daCategoria(categoria, "valorDiaria"), contains(480.00, 620.00)))
+                .andExpect(jsonPath(daCategoria(categoria, "fim"),
+                        contains(HOJE.plusDays(300).toString(), HOJE.plusDays(45).toString())));
 
         mockMvc.perform(put("/tarifas/{id}", alta).contentType(MediaType.APPLICATION_JSON)
                         .content(tarifa(categoria, "Alta temporada", HOJE.plusDays(25), HOJE.plusDays(25), "650.00")
@@ -184,10 +189,23 @@ class UhCategoriaTarifaIT {
                  "nacionalidade": "Brasileira"}""");
         String corpoCanais = mockMvc.perform(get("/canais")).andReturn().getResponse().getContentAsString();
         List<String> direto = JsonPath.read(corpoCanais, "$.data[?(@.nome == 'Direto (recepção)')].id");
+        criar("/tarifas", tarifa(categoria, "Tarifa base", HOJE.minusDays(5), HOJE.plusDays(30), "2600.00"));
         String reserva = criar("/reservas", """
                 {"uhId": "%s", "titularId": "%s", "canalId": "%s", "checkin": "%s", "checkout": "%s",
-                 "adultos": 10, "criancas": 2, "valorTotal": 0}"""
+                 "adultos": 10, "criancas": 2}"""
                 .formatted(completo, hospede, direto.getFirst(), HOJE, HOJE.plusDays(2)));
+        mockMvc.perform(put("/reservas/{id}/fnrh", reserva).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"cidadeProcedencia": "Recife/PE", "cidadeDestino": "Barreirinhas/MA",
+                         "motivoViagem": "LAZER", "meioTransporte": "AVIAO"}"""))
+                .andExpect(status().isOk());
+        // RF-35: a Casa Flor está suja; o imóvel completo inclui ela.
+        mockMvc.perform(post("/reservas/{id}/checkin", reserva))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.codigo").value("RF-35"))
+                .andExpect(jsonPath("$.message").value("Casa Flor ainda não foi liberada pela governança."));
+        mockMvc.perform(patch("/uhs/{id}/governanca", flor).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"LIVRE\"}"))
+                .andExpect(status().isOk());
         mockMvc.perform(post("/reservas/{id}/checkin", reserva)).andExpect(status().isOk());
 
         mockMvc.perform(get("/uhs"))
@@ -198,9 +216,9 @@ class UhCategoriaTarifaIT {
                 .andExpect(jsonPath("$.codigo").value("RN-07"))
                 .andExpect(jsonPath("$.message").value("Casa Alegria está ocupada: o status muda no check-out."));
 
-        // O que estava gravado volta a aparecer quando o hóspede sai.
+        // RN-07: no check-out, o imóvel completo e todas as casas ficam sujos.
         mockMvc.perform(post("/reservas/{id}/checkout", reserva)).andExpect(status().isOk());
         mockMvc.perform(get("/uhs"))
-                .andExpect(jsonPath("$.data[*].statusGovernanca", contains("LIVRE", "SUJA", "LIVRE")));
+                .andExpect(jsonPath("$.data[*].statusGovernanca", contains("SUJA", "SUJA", "SUJA")));
     }
 }

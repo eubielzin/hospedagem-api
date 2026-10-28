@@ -1,16 +1,18 @@
 package com.gestaocasas.application.dto;
 
-import jakarta.validation.constraints.Digits;
+import com.gestaocasas.domain.enums.RegimePensao;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
-/** uhId é o id do imóvel. */
+/**
+ * uhId é o id do imóvel. O valor vem da cotação pelas tarifas (RF-31): valorTotal é aceito só para o front
+ * antigo continuar funcionando e é ignorado.
+ */
 public record ReservaRequest(
         @NotNull(message = "UH é obrigatória")
         UUID uhId,
@@ -34,9 +36,13 @@ public record ReservaRequest(
         @Min(value = 0, message = "Crianças não pode ser negativo")
         Integer criancas,
 
-        @NotNull(message = "Valor total é obrigatório")
-        @PositiveOrZero(message = "Valor total não pode ser negativo")
-        @Digits(integer = 10, fraction = 2, message = "Valor total deve ter no máximo 2 casas decimais")
+        /** Sem regime informado: SEM_REFEICOES. */
+        RegimePensao regimePensao,
+
+        @Size(max = 60, message = "Código externo deve ter no máximo 60 caracteres")
+        String codigoExterno,
+
+        // Ignorado: o valor é o da cotação.
         BigDecimal valorTotal,
 
         @Size(max = 1000, message = "Observações devem ter no máximo 1000 caracteres")

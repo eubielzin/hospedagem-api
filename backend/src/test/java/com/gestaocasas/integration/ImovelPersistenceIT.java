@@ -118,7 +118,7 @@ class ImovelPersistenceIT {
 
         Integer migracoes = jdbc.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class);
-        assertThat(migracoes).isEqualTo(12);
+        assertThat(migracoes).isEqualTo(13);
     }
 
     @Test

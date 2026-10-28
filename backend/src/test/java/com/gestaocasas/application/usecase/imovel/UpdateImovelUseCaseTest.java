@@ -10,6 +10,7 @@ import com.gestaocasas.domain.enums.StatusImovel;
 import com.gestaocasas.domain.enums.TipoUh;
 import com.gestaocasas.domain.exception.ImovelNotFoundException;
 import com.gestaocasas.domain.exception.RegraDeNegocioException;
+import com.gestaocasas.domain.repository.BloqueioRepository;
 import com.gestaocasas.domain.repository.CategoriaUhRepository;
 import com.gestaocasas.domain.repository.ImovelRepository;
 import com.gestaocasas.domain.repository.ReservaRepository;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.Clock;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -51,7 +53,8 @@ class UpdateImovelUseCaseTest {
     void setUp() {
         var mapper = ImovelFixtures.mapper();
         var preenchedor = new PreenchedorImovel(mapper, repository, categoriaRepository, reservaRepository,
-                new GovernancaUh(repository, reservaRepository));
+                new GovernancaUh(repository, reservaRepository,
+                        org.mockito.Mockito.mock(BloqueioRepository.class), Clock.systemUTC()));
         useCase = new UpdateImovelUseCase(repository, mapper, preenchedor);
         when(repository.saveAndFlush(any(Imovel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(reservaRepository.findImoveisHospedados()).thenReturn(Set.of());

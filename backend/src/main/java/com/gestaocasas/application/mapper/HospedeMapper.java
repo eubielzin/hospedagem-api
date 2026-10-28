@@ -24,6 +24,9 @@ public interface HospedeMapper {
     @Mapping(target = "nome", qualifiedByName = "texto")
     @Mapping(target = "nacionalidade", qualifiedByName = "texto")
     @Mapping(target = "telefone", qualifiedByName = "texto")
+    @Mapping(target = "email", qualifiedByName = "texto")
+    @Mapping(target = "endereco", qualifiedByName = "texto")
+    @Mapping(target = "observacoesAlimentares", qualifiedByName = "texto")
     void updateEntity(HospedeRequest request, @MappingTarget Hospede hospede);
 
     /** CPF guardado só com os dígitos; RG e passaporte em maiúsculas. Sem documento, texto vazio. */

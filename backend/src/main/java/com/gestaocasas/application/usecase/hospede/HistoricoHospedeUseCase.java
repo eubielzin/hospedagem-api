@@ -32,7 +32,7 @@ public class HistoricoHospedeUseCase {
             throw new HospedeNotFoundException(id);
         }
         return reservaRepository.findByTitularIdOrderByCheckinDescCodigoDesc(id).stream()
-                .map(mapper::toResponse)
+                .map(mapper::toResumo)
                 .toList();
     }
 }

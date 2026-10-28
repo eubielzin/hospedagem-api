@@ -30,6 +30,11 @@ public interface ImovelRepository extends JpaRepository<Imovel, UUID>, JpaSpecif
 
     Optional<Imovel> findFirstByTipo(TipoUh tipo);
 
+    List<Imovel> findByTipo(TipoUh tipo);
+
+    @Query("select i.id from Imovel i")
+    List<UUID> findAllIds();
+
     Optional<Imovel> findFirstByTipoOrderByCriadoEmAsc(TipoUh tipo);
 
     Optional<Imovel> findFirstByTipoAndStatusAndStatusGovernancaOrderByNome(TipoUh tipo, StatusImovel status,
