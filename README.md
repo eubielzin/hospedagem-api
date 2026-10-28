@@ -15,8 +15,9 @@ leitura de imóveis e fotos é pública; todo o resto exige login.
 
 Também existem **produtos, estoque por casa e PDV**: cadastro de produtos, saldo por imóvel
 (consulta, alertas e estoque mínimo), movimentações (entradas, ajustes, perdas e transferências
-entre casas), busca dinâmica de produtos e vendas avulsas com cancelamento e devolução. Reservas
-e financeiro ainda não existem; o que depende deles está listado em [PDV e vendas](#pdv-e-vendas).
+entre casas), busca dinâmica de produtos e vendas avulsas com cancelamento, devolução e pagamento.
+A operação da pousada cobre reservas (cotação por tarifa, bloqueios, FNRH, remanejamento, no-show),
+conta do hóspede, painel e pessoas do dia, financeiro e indicadores.
 
 ## Rodando localmente
 
@@ -69,7 +70,7 @@ cp .env.example .env
 | `SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE` | não | Limite por arquivo. Padrão: `5MB` |
 | `SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE` | não | Limite da requisição de upload. Padrão: `6MB` |
 | `PRODUTOS_BUSCA_LIMITE_MAXIMO` | não | Teto de resultados da busca dinâmica de produtos. Padrão: `50` |
-| `DEMO_SEED` | não | `true` cria dados sintéticos de demonstração (RN-16: categorias, 6 casas, imóvel completo e tarifas) na subida, só se não houver nenhum imóvel. Nunca em produção. Padrão: `false` |
+| `DEMO_SEED` | não | `true` cria dados sintéticos de demonstração (RN-16: categorias, 6 casas, imóvel completo, tarifas, comissões das OTAs, hóspedes, cerca de 130 reservas de 60 dias atrás a 45 à frente, consumos, pagamentos e despesas) na subida, só se não houver nenhum imóvel. Nunca em produção. Padrão: `false` |
 
 ## Testes
 
@@ -167,15 +168,41 @@ Toda resposta segue o envelope `{ "success", "message", "data" }`; erros de vali
 | POST | `/tarifas` | Cadastra uma tarifa 🔐 |
 | PUT | `/tarifas/{id}` | Atualiza uma tarifa 🔐 |
 | GET | `/reservas?busca=&status=&canalId=&inicio=&fim=` | Lista reservas, da entrada mais recente para a mais antiga 🔐 |
-| GET | `/reservas/{id}` | Consulta uma reserva 🔐 |
-| POST | `/reservas` | Cria uma reserva (status `RESERVADO`) 🔐 |
-| PUT | `/reservas/{id}` | Edita uma reserva ainda `RESERVADO` 🔐 |
+| GET | `/reservas/cotacao?uhId=&checkin=&checkout=` | Cota a estadia pelas tarifas (RF-31, RF-32) 🔐 |
+| GET | `/reservas/{id}` | Consulta uma reserva, com o histórico 🔐 |
+| POST | `/reservas` | Cria uma reserva (status `RESERVADO`, valor da cotação) 🔐 |
+| PUT | `/reservas/{id}` | Edita uma reserva ainda `RESERVADO` (recota) 🔐 |
+| PUT | `/reservas/{id}/remanejamento` | Troca UH e/ou datas, inclusive com o hóspede na casa 🔐 |
+| PUT | `/reservas/{id}/fnrh` | Preenche a FNRH 🔐 |
 | POST | `/reservas/{id}/checkin` | Check-in: `RESERVADO` → `HOSPEDADO` 🔐 |
-| POST | `/reservas/{id}/checkout` | Check-out: `HOSPEDADO` → `CHECKOUT_REALIZADO` 🔐 |
-| POST | `/reservas/{id}/cancelar` | Cancela (`RESERVADO` → `CANCELADA`), com motivo opcional 🔐 |
+| POST | `/reservas/{id}/checkout` | Check-out: `HOSPEDADO` → `CHECKOUT_REALIZADO` (`{ autorizarPendencia }` opcional) 🔐 |
+| POST | `/reservas/{id}/cancelamento` | Cancela com motivo e multa 🔐 |
+| POST | `/reservas/{id}/cancelar` | Rota antiga do cancelamento, com corpo opcional 🔐 |
+| POST | `/reservas/{id}/no-show` | Registra o no-show, com motivo e multa 🔐 |
+| GET | `/reservas/{id}/conta` | Conta do hóspede 🔐 |
+| POST | `/reservas/{id}/lancamentos` | Lança consumo na conta (só `HOSPEDADO`) 🔐 |
+| POST | `/reservas/{id}/lancamentos/{lancamentoId}/estorno` | Estorna um lançamento 🔐 |
+| POST | `/reservas/{id}/pagamentos` | Registra um recebimento na conta 🔐 |
+| GET | `/bloqueios?inicio=&fim=` | Bloqueios ativos que cruzam o período 🔐 |
+| POST | `/bloqueios` | Bloqueia uma UH 🔐 |
+| PATCH | `/bloqueios/{id}/encerrar` | Encerra um bloqueio 🔐 |
+| GET | `/painel/resumo?data=` | Resumo do dia (RF-55) 🔐 |
+| GET | `/pessoas-do-dia?data=` | Hóspedes na casa na noite da data (RF-51 a RF-53) 🔐 |
+| GET | `/configuracao` | Configuração da pousada 🔐 |
+| PUT | `/configuracao` | Atualiza a configuração 🔐 |
+| GET | `/financeiro/recebimentos?inicio=&fim=` | Pagamentos de reservas e de vendas avulsas 🔐 |
+| GET | `/financeiro/repasses` | Repasses das OTAs 🔐 |
+| PATCH | `/financeiro/repasses/{reservaId}/recebimento` | Concilia o repasse 🔐 |
+| GET | `/financeiro/pendencias` | Contas com saldo 🔐 |
+| GET | `/financeiro/fluxo?inicio=&fim=` | Fluxo de caixa realizado e previsto 🔐 |
+| GET | `/despesas?inicio=&fim=` | Despesas por vencimento 🔐 |
+| POST | `/despesas` | Cadastra uma despesa 🔐 |
+| PATCH | `/despesas/{id}/pagamento` | Registra o pagamento da despesa 🔐 |
+| GET | `/indicadores?inicio=&fim=` | Indicadores do período (módulo 8) 🔐 |
+| GET | `/indicadores/previsao?inicio=&dias=` | Ocupação e receita já vendidas 🔐 |
 | GET | `/canais?incluirInativos=` | Lista os canais de venda 🔐 |
 | POST | `/canais` | Cadastra um canal 🔐 |
-| PUT | `/canais/{id}` | Atualiza nome e tipo 🔐 |
+| PUT | `/canais/{id}` | Atualiza nome, tipo, comissão e cor 🔐 |
 | PATCH | `/canais/{id}/inativar` | Inativa (some do formulário de nova reserva) 🔐 |
 | PATCH | `/canais/{id}/reativar` | Reativa 🔐 |
 | POST | `/imoveis` | Cria um imóvel 🔐 |
@@ -206,6 +233,7 @@ Toda resposta segue o envelope `{ "success", "message", "data" }`; erros de vali
 | GET | `/pdv/vendas/{id}` | Consulta uma venda com os itens 🔐 |
 | POST | `/pdv/vendas/{id}/cancelar` | Cancela a venda e devolve o estoque 🔐 |
 | POST | `/pdv/vendas/{id}/devolucoes` | Devolução física de itens ao estoque 🔐 |
+| POST | `/pdv/vendas/{id}/pagamento` | Registra o pagamento da venda (com troco em dinheiro) 🔐 |
 | GET | `/actuator/health` | Health check 🌐 |
 
 🌐 Pública. 🔐 Exige `Authorization: Bearer <token>`; sem ele, responde `401`.
@@ -324,7 +352,8 @@ não vierem na edição ficam como estão.
 ## Reservas
 
 A UH (unidade habitacional) de uma reserva é o **imóvel**: `uhId` é o id do imóvel e `uhNome`, o
-nome dele. O valor total ainda é informado na reserva; a cotação pelas tarifas é a próxima etapa.
+nome dele. O valor vem da **cotação pelas tarifas** da categoria da UH; `valorTotal` no corpo é
+aceito e ignorado, para o front antigo continuar funcionando.
 
 ```json
 POST /reservas
@@ -336,33 +365,49 @@ POST /reservas
   "checkout": "2027-03-06",
   "adultos": 2,
   "criancas": 0,
-  "valorTotal": 3360.00,
+  "regimePensao": "CAFE_DA_MANHA",
+  "codigoExterno": null,
   "observacoes": null
 }
 ```
 
-A resposta traz também `codigo` (`CM-1001`, `CM-1002`...), `uhNome`, `titularNome`, `canalNome`,
-`status` e as datas de check-in, check-out e cancelamento realizados.
+A resposta traz `codigo` (`CM-1001`...), os nomes (`uhNome`, `titularNome`, `canalNome`), `fnrh`,
+`encerramento` (cancelamento e no-show), `pendenciaAutorizada` e, no detalhe e nas ações,
+`historico` (`{ dataHora, descricao, usuario }`). Na listagem, `historico` vem nulo.
 
-- **Período:** `[checkin, checkout)`. A noite do checkout não é ocupada, então uma reserva pode
-  começar no dia em que outra termina.
-- **Conflito (`409`):** a UH não pode ter duas reservas `RESERVADO` ou `HOSPEDADO` que se cruzem.
-  Reservas canceladas liberam o período. A verificação bloqueia a linha do imóvel, então duas
-  criações simultâneas para o mesmo período resultam em uma reserva e um `409`.
-- **Regras (`422`):** saída depois da entrada; imóvel `ATIVO` (`RN-15`); UH fora de manutenção (`RF-35`); adultos até a
-  `capacidadeAdultos` e crianças até a `capacidadeCriancas` do imóvel (`RN-13`); hóspede e canal ativos (na edição, manter um que foi inativado
-  depois é permitido).
-- **Ciclo de vida:** `RESERVADO` → `HOSPEDADO` → `CHECKOUT_REALIZADO`, ou `RESERVADO` →
-  `CANCELADA`. Só `RESERVADO` pode ser editada ou cancelada. O check-in só é aceito a partir da
-  data de entrada (no fuso de Brasília) e exige o documento do titular preenchido (RN-04).
-  `NO_SHOW` existe no contrato, mas ainda não há rota que o registre.
-- **Listagem:** `busca` procura no nome do hóspede, no código (`CM-1546` ou `1546`) e no nome da
-  UH, sem diferenciar maiúsculas nem acentos. `inicio`/`fim` devolvem as reservas cujo período
-  cruza o intervalo. Resposta em lista, sem paginação.
-- **Canais:** a migração cria `Direto (recepção)`, `Booking.com`, `Airbnb` e `Expedia`. Tipos:
-  `DIRETO`, `OTA` e `MOTOR`.
-- **Ainda não existe:** cotação por tarifa, regime de pensão, FNRH, no-show com multa, conta do
-  hóspede, mapa de hospedagens, bloqueios e remanejamento.
+- **Período:** `[checkin, checkout)`. A noite do checkout não é ocupada. Bloqueios usam `fim` inclusive.
+- **Cotação (RF-31, RF-32):** em cada noite vale a tarifa de período mais curto da categoria. Sem
+  tarifa: `422 RF-31`. Venda fechada, chegada fechada na primeira noite, saída fechada no dia do
+  checkout ou estadia mínima: `422 RF-32`.
+- **Disponibilidade (RN-01, RN-02):** reservas ativas (nem canceladas nem no-show) e bloqueios ativos
+  não se cruzam; o imóvel completo conflita com todas as casas e cada casa com ele. `422 RN-01`
+  quando o conflito é na mesma UH e `RN-02` quando é na relacionada. As linhas da UH e do imóvel
+  completo ficam travadas até o commit (RNF-09): de duas gravações simultâneas, uma passa.
+- **Ordem das recusas ao criar:** UH inativa (`RN-15`) ou em manutenção (`RF-35`), titular inativo
+  (`400`), cotação, capacidade (`RN-13`) e disponibilidade.
+- **Ciclo (RN-03):** `RESERVADO` → `HOSPEDADO` → `CHECKOUT_REALIZADO`, ou `RESERVADO` → `CANCELADA` /
+  `NO_SHOW`. Ação em status errado: `422 RN-03`. Check-in a partir da entrada (Brasília), com
+  documento do titular e FNRH (`RN-04`) e a UH liberada pela governança (`RF-35`). Check-out com
+  saldo exige `autorizarPendencia: true` (`RN-05`) e deixa a UH `SUJA` (`RN-07`).
+- **Remanejamento:** `RESERVADO` ou `HOSPEDADO`; com o hóspede na casa a entrada não muda e a casa
+  antiga fica `SUJA`. O valor é recotado.
+- **Listagem:** `busca` procura no nome do hóspede, no código, no código externo e no nome da UH.
+  `inicio`/`fim`: `checkout > inicio` e `checkin <= fim`. Resposta em lista, sem paginação.
+- **Canais:** `comissao` (%) e `cor` (`#rrggbb`). A comissão é copiada para a reserva quando ela entra
+  no canal; mudar o canal depois não muda reservas antigas.
+
+## Conta, operação, financeiro e indicadores
+
+- **Conta do hóspede:** `saldo = diarias − repasseCanal + consumos − pagamentos`; em reservas de OTA
+  as diárias são recebidas do canal (RN-09). Lançamento com `produtoId` usa o preço do cadastro e
+  baixa o estoque do imóvel da reserva; o estorno devolve. Pagamentos de reserva e de venda avulsa
+  ficam na mesma tabela `pagamento`.
+- **Painel e pessoas do dia:** calculados das reservas (RF-55, RF-51 a RF-53). Quem sai no dia não
+  entra na lista de pessoas do dia (a validar com a pousada).
+- **Financeiro:** recebimentos, despesas, repasses (previsão = checkout, a validar), pendências e
+  fluxo de caixa. RN-08: de reserva cancelada só o valor retido entra como receita.
+- **Indicadores:** noites contadas por casa (o imóvel completo vale uma em cada casa), receita
+  apropriada noite a noite, período anterior de mesmo tamanho para comparação. Até 731 dias.
 
 ## Produtos
 
@@ -695,13 +740,11 @@ As chaves ficam na tabela `chave_idempotencia` e hoje não expiram.
 
 Os pontos abaixo dependem de módulos que não foram construídos. Nada foi simulado.
 
-- **Pagamento:** toda venda nasce com `pagamentoStatus: PENDENTE` e **nenhuma rota a marca como
-  recebida**. Não há forma de pagamento, troco, caixa nem reembolso. O valor `RECEBIDO` existe
-  no banco só como ponto de integração para o módulo financeiro. `totalDevolvido` é o valor dos
-  itens devolvidos, não um reembolso.
-- **Reservas:** o módulo de reservas já existe, mas o PDV ainda não se liga a ele: a API só
-  registra vendas avulsas. A coluna `venda.reserva_id` e o tipo `RESERVA` estão reservados para
-  lançar consumos na conta do hóspede, que ainda não existe.
+- **Pagamento:** a venda nasce `PENDENTE` e `POST /pdv/vendas/{id}/pagamento` (com `Idempotency-Key`)
+  registra o pagamento de uma vez, pelo total menos o devolvido, com troco em dinheiro. Não há
+  pagamento dividido nem reembolso; `totalDevolvido` é o valor dos itens devolvidos.
+- **Consumo de hóspede:** vai para a conta da reserva (`POST /reservas/{id}/lancamentos`), não para
+  o PDV. A coluna `venda.reserva_id` e o tipo `RESERVA` seguem sem uso.
 - **Usuário:** a venda ainda não registra quem a fez.
 - **Desconto, acréscimo e número sequencial de venda** não existem.
 

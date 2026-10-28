@@ -20,11 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
- * Dados sintéticos de demonstração (RN-16), iguais aos do mock do front: 3 categorias, 6 casas, o imóvel
- * completo e as tarifas. Só roda com {@code DEMO_SEED=true} e sem nenhum imóvel cadastrado, para nunca
- * misturar dados falsos com os reais.
+ * Dados sintéticos de demonstração (RN-16), parecidos com os do mock do front: 3 categorias, 6 casas, o imóvel
+ * completo, as tarifas e o movimento (hóspedes, reservas, contas, pagamentos e despesas). Só roda com
+ * {@code DEMO_SEED=true} e sem nenhum imóvel cadastrado, para nunca misturar dados falsos com os reais.
  */
 @Component
 @ConditionalOnProperty(name = "app.demo.seed", havingValue = "true")
@@ -35,13 +36,15 @@ public class DadosDemonstracao implements ApplicationRunner {
     private final ImovelRepository imovelRepository;
     private final CategoriaUhRepository categoriaRepository;
     private final TarifaRepository tarifaRepository;
+    private final MovimentoDemonstracao movimento;
     private final Clock clock;
 
     public DadosDemonstracao(ImovelRepository imovelRepository, CategoriaUhRepository categoriaRepository,
-                             TarifaRepository tarifaRepository, Clock clock) {
+                             TarifaRepository tarifaRepository, MovimentoDemonstracao movimento, Clock clock) {
         this.imovelRepository = imovelRepository;
         this.categoriaRepository = categoriaRepository;
         this.tarifaRepository = tarifaRepository;
+        this.movimento = movimento;
         this.clock = clock;
     }
 
@@ -56,12 +59,13 @@ public class DadosDemonstracao implements ApplicationRunner {
         CategoriaUh tripla = categoria("Suíte Tripla Comfort", 1, "Casa para até 3 adultos.");
         CategoriaUh completo = categoria("Imóvel completo", 3, "Todas as casas vendidas como uma unidade.");
 
-        casa("Casa Alegria", familia, 4, 2, TipoUh.CASA);
-        casa("Casa Amizade", familia, 4, 2, TipoUh.CASA);
-        casa("Casa Essência", tripla, 3, 1, TipoUh.CASA);
-        casa("Casa Flor", tripla, 3, 1, TipoUh.CASA);
-        casa("Casa Sabedoria", familia, 4, 2, TipoUh.CASA);
-        casa("Casa Serenidade", tripla, 3, 1, TipoUh.CASA);
+        List<Imovel> casas = List.of(
+                casa("Casa Alegria", familia, 4, 2, TipoUh.CASA),
+                casa("Casa Amizade", familia, 4, 2, TipoUh.CASA),
+                casa("Casa Essência", tripla, 3, 1, TipoUh.CASA),
+                casa("Casa Flor", tripla, 3, 1, TipoUh.CASA),
+                casa("Casa Sabedoria", familia, 4, 2, TipoUh.CASA),
+                casa("Casa Serenidade", tripla, 3, 1, TipoUh.CASA));
         casa("Imóvel completo", completo, 20, 10, TipoUh.IMOVEL_COMPLETO);
 
         LocalDate hoje = LocalDate.now(clock);
@@ -73,7 +77,8 @@ public class DadosDemonstracao implements ApplicationRunner {
         tarifa(familia, "Alta temporada", hoje.plusDays(25), hoje.plusDays(45), "620.00", 2);
         tarifa(tripla, "Alta temporada", hoje.plusDays(25), hoje.plusDays(45), "490.00", 2);
         tarifa(completo, "Alta temporada", hoje.plusDays(25), hoje.plusDays(45), "3400.00", 3);
-        log.info("Dados de demonstração criados: 7 UHs, 3 categorias e 6 tarifas");
+        int reservas = movimento.criar(casas);
+        log.info("Dados de demonstração criados: 7 UHs, 3 categorias, 6 tarifas e {} reservas", reservas);
     }
 
     private CategoriaUh categoria(String nome, int nivel, String descricao) {
@@ -85,7 +90,7 @@ public class DadosDemonstracao implements ApplicationRunner {
         return categoriaRepository.save(categoria);
     }
 
-    private void casa(String nome, CategoriaUh categoria, int adultos, int criancas, TipoUh tipo) {
+    private Imovel casa(String nome, CategoriaUh categoria, int adultos, int criancas, TipoUh tipo) {
         Imovel imovel = new Imovel();
         imovel.setNome(nome);
         imovel.setTipo(tipo);
@@ -103,7 +108,7 @@ public class DadosDemonstracao implements ApplicationRunner {
         imovel.setValorBaseDiaria(BigDecimal.ZERO);
         imovel.setStatus(StatusImovel.ATIVO);
         imovel.setStatusGovernanca(StatusGovernanca.LIVRE);
-        imovelRepository.save(imovel);
+        return imovelRepository.save(imovel);
     }
 
     private void tarifa(CategoriaUh categoria, String nome, LocalDate inicio, LocalDate fim, String valor,
