@@ -64,6 +64,45 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID>, JpaSpec
             + "and r.checkin <= :dia and r.checkout > :dia")
     List<Reserva> findHospedadasNaNoite(@Param("dia") LocalDate dia);
 
+    /** RN-09: reservas ativas de canal OTA, cada uma com um repasse a receber. */
+    @EntityGraph(attributePaths = {"imovel", "titular", "canal"})
+    @Query("select r from Reserva r where r.canal.tipo = com.gestaocasas.domain.enums.TipoCanal.OTA and r.status not in "
+            + "(com.gestaocasas.domain.enums.StatusReserva.CANCELADA, com.gestaocasas.domain.enums.StatusReserva.NO_SHOW) "
+            + "order by r.checkout, r.codigo")
+    List<Reserva> findComRepasse();
+
+    /** Repasses com data em [inicio, fim]: o recebimento, ou o checkout (previsão) enquanto não recebido. */
+    @EntityGraph(attributePaths = {"canal"})
+    @Query("select r from Reserva r where r.canal.tipo = com.gestaocasas.domain.enums.TipoCanal.OTA and r.status not in "
+            + "(com.gestaocasas.domain.enums.StatusReserva.CANCELADA, com.gestaocasas.domain.enums.StatusReserva.NO_SHOW) "
+            + "and ((r.repasseRecebidoEm is not null and r.repasseRecebidoEm between :inicio and :fim) "
+            + "or (r.repasseRecebidoEm is null and r.checkout between :inicio and :fim))")
+    List<Reserva> findRepassesNoPeriodo(@Param("inicio") LocalDate inicio, @Param("fim") LocalDate fim);
+
+    /** RN-08: encerramentos com valor retido (multa) em [inicio, fim], que entram como receita. */
+    @Query("select r from Reserva r where r.encerramento.valorRetido > 0 and r.encerramento.data between :inicio and :fim")
+    List<Reserva> findComValorRetidoNoPeriodo(@Param("inicio") LocalDate inicio, @Param("fim") LocalDate fim);
+
+    /**
+     * RF-47: hospedadas ou com check-out feito cuja conta tem saldo. saldo = diárias − repasse (OTA) + consumos não
+     * estornados − pagamentos; a mesma conta de ContaReserva, feita no banco.
+     */
+    @Query(value = """
+            SELECT r.id AS "reservaId", s.saldo AS "saldo" FROM reserva r
+            JOIN canal c ON c.id = r.canal_id
+            CROSS JOIN LATERAL (SELECT r.valor_total
+                    - CASE WHEN c.tipo = 'OTA' THEN r.valor_total ELSE 0 END
+                    + coalesce((SELECT sum(l.total) FROM lancamento_conta l
+                                WHERE l.reserva_id = r.id AND NOT l.estornado), 0)
+                    - coalesce((SELECT sum(p.valor_bruto) FROM pagamento p WHERE p.reserva_id = r.id), 0) AS saldo) s
+            WHERE r.status IN ('HOSPEDADO', 'CHECKOUT_REALIZADO') AND s.saldo > 0
+            """, nativeQuery = true)
+    List<SaldoReserva> findSaldosEmAberto();
+
+    @EntityGraph(attributePaths = {"imovel", "titular", "canal"})
+    @Query("select r from Reserva r where r.id in :ids")
+    List<Reserva> findDetalhadasByIdIn(@Param("ids") Collection<UUID> ids);
+
     @Query(value = "SELECT nextval('reserva_codigo_seq')", nativeQuery = true)
     long proximoNumero();
 }

@@ -82,6 +82,10 @@ public class Reserva {
     @Embedded
     private Encerramento encerramento;
 
+    /** RF-46: dia em que o repasse da OTA foi recebido; nulo enquanto não recebido. */
+    @Column(name = "repasse_recebido_em")
+    private LocalDate repasseRecebidoEm;
+
     /** RN-05: o check-out foi feito com saldo em aberto, autorizado. */
     @Column(name = "pendencia_autorizada", nullable = false)
     private boolean pendenciaAutorizada;
