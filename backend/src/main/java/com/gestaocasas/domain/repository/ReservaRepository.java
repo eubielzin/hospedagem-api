@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -102,6 +103,22 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID>, JpaSpec
     @EntityGraph(attributePaths = {"imovel", "titular", "canal"})
     @Query("select r from Reserva r where r.id in :ids")
     List<Reserva> findDetalhadasByIdIn(@Param("ids") Collection<UUID> ids);
+
+    /** Para os indicadores: qualquer status, ocupando alguma noite de [desde, ate] ou encerradas nele. */
+    @EntityGraph(attributePaths = {"imovel", "titular", "canal"})
+    @Query("select r from Reserva r where (r.checkin <= :ate and r.checkout > :desde) "
+            + "or r.encerramento.data between :desde and :ate")
+    List<Reserva> findParaIndicadores(@Param("desde") LocalDate desde, @Param("ate") LocalDate ate);
+
+    /** Por titular, o checkin da primeira reserva ativa: base da recorrência. */
+    @Query(value = "SELECT hospede_id, min(checkin) FROM reserva WHERE status NOT IN ('CANCELADA', 'NO_SHOW') "
+            + "GROUP BY hospede_id", nativeQuery = true)
+    List<Object[]> findPrimeiraEstadiaPorTitular();
+
+    /** Ativas feitas a partir do instante (ritmo de vendas). */
+    @Query("select count(r) from Reserva r where r.criadoEm >= :desde and r.status not in "
+            + "(com.gestaocasas.domain.enums.StatusReserva.CANCELADA, com.gestaocasas.domain.enums.StatusReserva.NO_SHOW)")
+    long countAtivasCriadasDesde(@Param("desde") Instant desde);
 
     @Query(value = "SELECT nextval('reserva_codigo_seq')", nativeQuery = true)
     long proximoNumero();

@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,4 +21,10 @@ public interface VendaRepository extends JpaRepository<Venda, UUID>, JpaSpecific
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select v from Venda v where v.id = :id")
     Optional<Venda> findByIdForUpdate(@Param("id") UUID id);
+
+    /** Vendas avulsas concluídas em [desde, ate), com os itens: receita de consumo dos indicadores. */
+    @Query("select distinct v from Venda v left join fetch v.itens i left join fetch i.produto "
+            + "where v.status = com.gestaocasas.domain.enums.StatusVenda.CONCLUIDA "
+            + "and v.tipo = com.gestaocasas.domain.enums.TipoVenda.AVULSA and v.criadoEm >= :desde and v.criadoEm < :ate")
+    List<Venda> findConcluidasEntre(@Param("desde") Instant desde, @Param("ate") Instant ate);
 }
