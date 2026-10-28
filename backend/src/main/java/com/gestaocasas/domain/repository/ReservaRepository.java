@@ -52,6 +52,18 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID>, JpaSpec
             + "(com.gestaocasas.domain.enums.StatusReserva.RESERVADO, com.gestaocasas.domain.enums.StatusReserva.HOSPEDADO)")
     boolean existeAtivaNoImovel(@Param("imovelId") UUID imovelId);
 
+    /** Ativas (nem canceladas nem no-show) que ocupam alguma noite ou têm entrada ou saída em [desde, ate]. */
+    @EntityGraph(attributePaths = {"imovel", "titular", "canal"})
+    @Query("select r from Reserva r where r.status not in (com.gestaocasas.domain.enums.StatusReserva.CANCELADA, "
+            + "com.gestaocasas.domain.enums.StatusReserva.NO_SHOW) and r.checkin <= :ate and r.checkout >= :desde")
+    List<Reserva> findAtivasEntre(@Param("desde") LocalDate desde, @Param("ate") LocalDate ate);
+
+    /** Hospedadas que dormem na casa na noite do dia: checkin <= dia < checkout. */
+    @EntityGraph(attributePaths = {"imovel", "titular"})
+    @Query("select r from Reserva r where r.status = com.gestaocasas.domain.enums.StatusReserva.HOSPEDADO "
+            + "and r.checkin <= :dia and r.checkout > :dia")
+    List<Reserva> findHospedadasNaNoite(@Param("dia") LocalDate dia);
+
     @Query(value = "SELECT nextval('reserva_codigo_seq')", nativeQuery = true)
     long proximoNumero();
 }
