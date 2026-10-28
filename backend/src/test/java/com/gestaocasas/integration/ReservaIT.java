@@ -257,7 +257,9 @@ class ReservaIT {
                 .andExpect(status().isUnprocessableContent());
         mockMvc.perform(post("/reservas/{id}/cancelar", hoje)).andExpect(status().isUnprocessableContent());
 
-        mockMvc.perform(post("/reservas/{id}/checkout", hoje))
+        // Diárias da recepção não pagas: o check-out sai só com a pendência autorizada (RN-05).
+        mockMvc.perform(post("/reservas/{id}/checkout", hoje).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"autorizarPendencia\": true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CHECKOUT_REALIZADO"));
         mockMvc.perform(post("/reservas/{id}/checkout", hoje)).andExpect(status().isUnprocessableContent());

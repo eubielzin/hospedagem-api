@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -25,6 +26,14 @@ public class Canal {
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo", nullable = false, length = 10)
     private TipoCanal tipo;
+
+    /** Percentual de comissão (RF-19). */
+    @Column(name = "comissao", nullable = false, precision = 5, scale = 2)
+    private BigDecimal comissao;
+
+    /** Cor no mapa, "#rrggbb" em minúsculas. */
+    @Column(name = "cor", nullable = false, length = 7)
+    private String cor;
 
     @Column(name = "ativo", nullable = false)
     private boolean ativo;

@@ -4,6 +4,7 @@ import com.gestaocasas.application.dto.ItemVendaResponse;
 import com.gestaocasas.application.dto.VendaResponse;
 import com.gestaocasas.application.dto.VendaResumoResponse;
 import com.gestaocasas.domain.entity.ItemVenda;
+import com.gestaocasas.domain.entity.Pagamento;
 import com.gestaocasas.domain.entity.Venda;
 import org.springframework.stereotype.Component;
 
@@ -18,14 +19,22 @@ public class VendaMapper {
         BigDecimal totalDevolvido = venda.getItens().stream()
                 .map(item -> item.getPrecoUnitario().multiply(BigDecimal.valueOf(item.getQuantidadeDevolvida())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Pagamento pagamento = venda.getPagamento();
+        BigDecimal recebido = pagamento == null ? null : pagamento.getValorRecebido();
         return new VendaResponse(venda.getId(), venda.getImovel().getId(), venda.getTipo(), venda.getStatus(),
                 venda.getPagamentoStatus(), venda.getTotal(), totalDevolvido.setScale(2), venda.getObservacao(),
-                itens, venda.getCriadoEm(), venda.getCanceladoEm(), venda.getMotivoCancelamento());
+                itens, venda.getCriadoEm(), venda.getCanceladoEm(), venda.getMotivoCancelamento(),
+                pagamento == null ? null : pagamento.getForma(),
+                pagamento == null ? null : pagamento.getValorBruto(),
+                recebido,
+                recebido == null ? null : recebido.subtract(pagamento.getValorBruto()),
+                pagamento == null ? null : pagamento.getCriadoEm());
     }
 
     public VendaResumoResponse toResumo(Venda venda) {
         return new VendaResumoResponse(venda.getId(), venda.getImovel().getId(), venda.getTipo(), venda.getStatus(),
-                venda.getPagamentoStatus(), venda.getTotal(), venda.getCriadoEm(), venda.getCanceladoEm());
+                venda.getPagamentoStatus(), venda.getTotal(), venda.getCriadoEm(), venda.getCanceladoEm(),
+                venda.getPagamento() == null ? null : venda.getPagamento().getForma());
     }
 
     private static ItemVendaResponse toResponse(ItemVenda item) {

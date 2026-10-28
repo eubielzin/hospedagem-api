@@ -10,11 +10,15 @@ import com.gestaocasas.domain.repository.CanalRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.Locale;
 import java.util.UUID;
 
 /** Cadastro, edição, inativação e reativação de canais. */
 @Component
 public class SalvarCanalUseCase {
+
+    private static final String COR_PADRAO = "#64748b";
 
     private final CanalRepository repository;
     private final CanalMapper mapper;
@@ -33,6 +37,8 @@ public class SalvarCanalUseCase {
         Canal canal = new Canal();
         canal.setNome(nome);
         canal.setTipo(request.tipo());
+        canal.setComissao(request.comissao() == null ? BigDecimal.ZERO : request.comissao());
+        canal.setCor(request.cor() == null ? COR_PADRAO : request.cor().toLowerCase(Locale.ROOT));
         canal.setAtivo(true);
         return mapper.toResponse(repository.saveAndFlush(canal));
     }
@@ -46,6 +52,13 @@ public class SalvarCanalUseCase {
         }
         canal.setNome(nome);
         canal.setTipo(request.tipo());
+        // Reservas já feitas guardam a comissão da época: mudar aqui só vale para as próximas.
+        if (request.comissao() != null) {
+            canal.setComissao(request.comissao());
+        }
+        if (request.cor() != null) {
+            canal.setCor(request.cor().toLowerCase(Locale.ROOT));
+        }
         return mapper.toResponse(repository.saveAndFlush(canal));
     }
 

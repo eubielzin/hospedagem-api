@@ -217,6 +217,9 @@ class UhCategoriaTarifaIT {
                 .andExpect(jsonPath("$.message").value("Casa Alegria está ocupada: o status muda no check-out."));
 
         // RN-07: no check-out, o imóvel completo e todas as casas ficam sujos.
+        mockMvc.perform(post("/reservas/{id}/pagamentos", reserva).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"forma\": \"PIX\", \"valorBruto\": 5200.00}"))
+                .andExpect(status().isCreated());
         mockMvc.perform(post("/reservas/{id}/checkout", reserva)).andExpect(status().isOk());
         mockMvc.perform(get("/uhs"))
                 .andExpect(jsonPath("$.data[*].statusGovernanca", contains("SUJA", "SUJA", "SUJA")));

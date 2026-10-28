@@ -32,7 +32,7 @@ public class Venda {
     @Column(name = "tipo", nullable = false, updatable = false, length = 20)
     private TipoVenda tipo;
 
-    // Sem relacionamento: o módulo de reservas ainda não existe.
+    // Sem relacionamento: o PDV só registra vendas avulsas; o consumo do quarto vai para a conta da reserva.
     @Column(name = "reserva_id", updatable = false)
     private UUID reservaId;
 
@@ -52,6 +52,10 @@ public class Venda {
 
     @Column(name = "motivo_cancelamento", length = 300)
     private String motivoCancelamento;
+
+    /** Nulo enquanto a venda não foi paga. */
+    @OneToOne(mappedBy = "venda", fetch = FetchType.LAZY)
+    private Pagamento pagamento;
 
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL)
     @OrderBy("produtoNome ASC, id ASC")

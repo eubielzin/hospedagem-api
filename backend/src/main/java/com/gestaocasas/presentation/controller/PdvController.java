@@ -4,6 +4,7 @@ import com.gestaocasas.application.dto.ApiResponse;
 import com.gestaocasas.application.dto.CancelamentoVendaRequest;
 import com.gestaocasas.application.dto.DevolucaoVendaRequest;
 import com.gestaocasas.application.dto.PageResponse;
+import com.gestaocasas.application.dto.PagamentoVendaRequest;
 import com.gestaocasas.application.dto.ResultadoIdempotente;
 import com.gestaocasas.application.dto.VendaRequest;
 import com.gestaocasas.application.dto.VendaResponse;
@@ -12,6 +13,7 @@ import com.gestaocasas.application.usecase.pdv.CancelarVendaUseCase;
 import com.gestaocasas.application.usecase.pdv.DevolverItensVendaUseCase;
 import com.gestaocasas.application.usecase.pdv.GetVendaByIdUseCase;
 import com.gestaocasas.application.usecase.pdv.ListarVendasUseCase;
+import com.gestaocasas.application.usecase.pdv.RegistrarPagamentoVendaUseCase;
 import com.gestaocasas.application.usecase.pdv.RegistrarVendaUseCase;
 import com.gestaocasas.domain.enums.StatusVenda;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +31,8 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/pdv/vendas")
-@Tag(name = "PDV", description = "Vendas avulsas por imóvel.")
+@Tag(name = "PDV", description = "Vendas avulsas por imóvel. O consumo de hóspede vai para a conta da reserva "
+        + "(POST /reservas/{id}/lancamentos).")
 public class PdvController {
 
     public static final String CABECALHO_CHAVE = "Idempotency-Key";
@@ -43,15 +46,17 @@ public class PdvController {
     private final GetVendaByIdUseCase getVendaById;
     private final CancelarVendaUseCase cancelarVenda;
     private final DevolverItensVendaUseCase devolverItens;
+    private final RegistrarPagamentoVendaUseCase registrarPagamento;
 
     public PdvController(RegistrarVendaUseCase registrarVenda, ListarVendasUseCase listarVendas,
                          GetVendaByIdUseCase getVendaById, CancelarVendaUseCase cancelarVenda,
-                         DevolverItensVendaUseCase devolverItens) {
+                         DevolverItensVendaUseCase devolverItens, RegistrarPagamentoVendaUseCase registrarPagamento) {
         this.registrarVenda = registrarVenda;
         this.listarVendas = listarVendas;
         this.getVendaById = getVendaById;
         this.cancelarVenda = cancelarVenda;
         this.devolverItens = devolverItens;
+        this.registrarPagamento = registrarPagamento;
     }
 
     @PostMapping
@@ -109,5 +114,23 @@ public class PdvController {
                 .header(CABECALHO_REPETIDA, String.valueOf(resultado.repetida()))
                 .body(ApiResponse.ok(resultado.repetida() ? "Devolução já registrada com esta chave"
                         : "Devolução registrada com sucesso", resultado.valor()));
+    }
+
+    @PostMapping("/{id}/pagamento")
+    @Operation(summary = "Registra o pagamento da venda (RF-39)",
+            description = "O valor é o total menos o devolvido, calculado aqui. Em DINHEIRO, valorRecebido é "
+                    + "obrigatório e maior ou igual ao valor (400), e a resposta traz o troco. 422 se a venda estiver "
+                    + "cancelada ou já paga. Exige Idempotency-Key: repetir com a mesma chave devolve 200 com "
+                    + "Idempotent-Replay: true.")
+    public ResponseEntity<ApiResponse<VendaResponse>> pagar(
+            @PathVariable UUID id,
+            @RequestHeader(CABECALHO_CHAVE) @Pattern(regexp = FORMATO_CHAVE, message = CHAVE_INVALIDA)
+            String idempotencyKey,
+            @Valid @RequestBody PagamentoVendaRequest request) {
+        ResultadoIdempotente<VendaResponse> resultado = registrarPagamento.execute(id, request, idempotencyKey);
+        return ResponseEntity.ok()
+                .header(CABECALHO_REPETIDA, String.valueOf(resultado.repetida()))
+                .body(ApiResponse.ok(resultado.repetida() ? "Pagamento já registrado com esta chave"
+                        : "Pagamento registrado com sucesso", resultado.valor()));
     }
 }

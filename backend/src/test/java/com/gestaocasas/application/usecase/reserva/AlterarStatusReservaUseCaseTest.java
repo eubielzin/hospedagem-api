@@ -2,6 +2,7 @@ package com.gestaocasas.application.usecase.reserva;
 
 import com.gestaocasas.application.dto.EncerramentoRequest;
 import com.gestaocasas.application.mapper.ReservaMapperImpl;
+import com.gestaocasas.application.service.ContaReserva;
 import com.gestaocasas.application.service.GovernancaUh;
 import com.gestaocasas.application.service.UsuarioLogado;
 import com.gestaocasas.domain.entity.Canal;
@@ -55,6 +56,8 @@ class AlterarStatusReservaUseCaseTest {
     private BloqueioRepository bloqueioRepository;
     @Mock
     private UsuarioLogado usuarioLogado;
+    @Mock
+    private ContaReserva conta;
 
     private AlterarStatusReservaUseCase useCase;
     private EncerrarReservaUseCase encerrar;
@@ -66,7 +69,7 @@ class AlterarStatusReservaUseCaseTest {
         Clock clock = Clock.fixed(AGORA, BRASILIA);
         AcoesReserva acoes = new AcoesReserva(repository, usuarioLogado, clock);
         GovernancaUh governanca = new GovernancaUh(imovelRepository, repository, bloqueioRepository, clock);
-        useCase = new AlterarStatusReservaUseCase(repository, governanca, acoes, new ReservaMapperImpl());
+        useCase = new AlterarStatusReservaUseCase(repository, governanca, conta, acoes, new ReservaMapperImpl());
         encerrar = new EncerrarReservaUseCase(repository, acoes, new ReservaMapperImpl());
 
         Usuario recepcao = new Usuario();
@@ -160,14 +163,32 @@ class AlterarStatusReservaUseCaseTest {
 
     @Test
     void checkoutSoDeHospedadoEDeixaAUhSuja() {
-        assertThatThrownBy(() -> useCase.checkout(reserva.getId()))
+        assertThatThrownBy(() -> useCase.checkout(reserva.getId(), false))
                 .hasMessage("Não é possível fazer o check-out com a reserva em \"Reservado\".")
                 .extracting("codigo").isEqualTo("RN-03");
 
         reserva.setStatus(StatusReserva.HOSPEDADO);
-        assertThat(useCase.checkout(reserva.getId()).status()).isEqualTo(StatusReserva.CHECKOUT_REALIZADO);
+        when(conta.saldo(reserva)).thenReturn(BigDecimal.ZERO);
+        assertThat(useCase.checkout(reserva.getId(), false).status()).isEqualTo(StatusReserva.CHECKOUT_REALIZADO);
         assertThat(reserva.getCheckoutRealizadoEm()).isEqualTo(AGORA);
+        assertThat(reserva.isPendenciaAutorizada()).isFalse();
         assertThat(casa.getStatusGovernanca()).isEqualTo(StatusGovernanca.SUJA);
+    }
+
+    @Test
+    void checkoutComSaldoSoComPendenciaAutorizada() {
+        reserva.setStatus(StatusReserva.HOSPEDADO);
+        when(conta.saldo(reserva)).thenReturn(new BigDecimal("1234.5"));
+
+        assertThatThrownBy(() -> useCase.checkout(reserva.getId(), false))
+                .hasMessage("A conta tem saldo de R$ 1.234,50. Quite ou registre a pendência autorizada pelo gerente.")
+                .extracting("codigo").isEqualTo("RN-05");
+        assertThat(reserva.getStatus()).isEqualTo(StatusReserva.HOSPEDADO);
+
+        useCase.checkout(reserva.getId(), true);
+        assertThat(reserva.isPendenciaAutorizada()).isTrue();
+        assertThat(reserva.getHistorico().getLast().getDescricao())
+                .isEqualTo("Check-out com pendência autorizada de R$ 1.234,50 por Recepção");
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.gestaocasas.application.usecase.reserva;
 
 import com.gestaocasas.application.dto.ReservaResponse;
 import com.gestaocasas.application.mapper.ReservaMapper;
+import com.gestaocasas.application.service.ContaReserva;
 import com.gestaocasas.application.service.Formato;
 import com.gestaocasas.application.service.GovernancaUh;
 import com.gestaocasas.domain.entity.Reserva;
@@ -11,6 +12,7 @@ import com.gestaocasas.domain.repository.ReservaRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /** Check-in (RF-24) e check-out (RF-25). Cancelamento e no-show ficam em EncerrarReservaUseCase. */
@@ -19,13 +21,15 @@ public class AlterarStatusReservaUseCase {
 
     private final ReservaRepository repository;
     private final GovernancaUh governanca;
+    private final ContaReserva conta;
     private final AcoesReserva acoes;
     private final ReservaMapper mapper;
 
-    public AlterarStatusReservaUseCase(ReservaRepository repository, GovernancaUh governanca, AcoesReserva acoes,
-                                       ReservaMapper mapper) {
+    public AlterarStatusReservaUseCase(ReservaRepository repository, GovernancaUh governanca, ContaReserva conta,
+                                       AcoesReserva acoes, ReservaMapper mapper) {
         this.repository = repository;
         this.governanca = governanca;
+        this.conta = conta;
         this.acoes = acoes;
         this.mapper = mapper;
     }
@@ -52,15 +56,26 @@ public class AlterarStatusReservaUseCase {
         return mapper.toResponse(repository.saveAndFlush(reserva));
     }
 
-    /** RN-07: a UH fica suja e só volta a livre pela governança. */
+    /**
+     * RN-05: com saldo em aberto, só com a pendência autorizada (RN-14: pelo gerente, quando houver perfis).
+     * RN-07: a UH fica suja e só volta a livre pela governança.
+     */
     @Transactional
-    public ReservaResponse checkout(UUID id) {
+    public ReservaResponse checkout(UUID id, boolean autorizarPendencia) {
         Reserva reserva = acoes.buscar(id);
         AcoesReserva.exigirStatus(reserva, "fazer o check-out", StatusReserva.HOSPEDADO);
+        BigDecimal saldo = conta.saldo(reserva);
+        boolean comSaldo = saldo.signum() > 0;
+        if (comSaldo && !autorizarPendencia) {
+            throw new RegraDeNegocioException("RN-05", "A conta tem saldo de " + Formato.dinheiro(saldo)
+                    + ". Quite ou registre a pendência autorizada pelo gerente.");
+        }
         reserva.setStatus(StatusReserva.CHECKOUT_REALIZADO);
         reserva.setCheckoutRealizadoEm(acoes.agora());
+        reserva.setPendenciaAutorizada(comSaldo);
         governanca.marcarSuja(reserva.getImovel());
-        acoes.registrar(reserva, "Check-out realizado");
+        acoes.registrar(reserva, comSaldo ? "Check-out com pendência autorizada de " + Formato.dinheiro(saldo)
+                + " por " + acoes.quem() : "Check-out realizado");
         return mapper.toResponse(repository.saveAndFlush(reserva));
     }
 }

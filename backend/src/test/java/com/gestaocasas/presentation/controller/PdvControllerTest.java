@@ -70,6 +70,8 @@ class PdvControllerTest {
     private CancelarVendaUseCase cancelarVenda;
     @MockitoBean
     private DevolverItensVendaUseCase devolverItens;
+    @MockitoBean
+    private com.gestaocasas.application.usecase.pdv.RegistrarPagamentoVendaUseCase registrarPagamento;
 
     private final UUID vendaId = UUID.randomUUID();
     private final UUID imovelId = UUID.randomUUID();
@@ -86,7 +88,7 @@ class PdvControllerTest {
                 List.of(new ItemVendaResponse(UUID.randomUUID(), produtoId, "COCA350", "Coca-Cola Lata 350ml", 3, 0,
                         new BigDecimal("6.00"), new BigDecimal("18.00"))),
                 Instant.now(), status == StatusVenda.CANCELADA ? Instant.now() : null,
-                status == StatusVenda.CANCELADA ? "Lançada errada" : null);
+                status == StatusVenda.CANCELADA ? "Lançada errada" : null, null, null, null, null, null);
     }
 
     @Test
@@ -195,7 +197,7 @@ class PdvControllerTest {
         when(getVendaById.execute(vendaId)).thenReturn(venda(StatusVenda.CONCLUIDA));
         when(listarVendas.execute(any(), any(), any())).thenReturn(new PageResponse<>(List.of(
                 new VendaResumoResponse(vendaId, imovelId, TipoVenda.AVULSA, StatusVenda.CONCLUIDA,
-                        StatusPagamento.PENDENTE, new BigDecimal("18.00"), Instant.now(), null)), 0, 20, 1, 1));
+                        StatusPagamento.PENDENTE, new BigDecimal("18.00"), Instant.now(), null, null)), 0, 20, 1, 1));
 
         mockMvc.perform(get("/pdv/vendas/{id}", vendaId))
                 .andExpect(status().isOk())
@@ -248,9 +250,24 @@ class PdvControllerTest {
     }
 
     @Test
-    void naoExisteRotaParaMarcarVendaComoRecebidaNemParaAlterarOuApagar() throws Exception {
+    void pagamentoExigeChaveEForma() throws Exception {
+        mockMvc.perform(post("/pdv/vendas/{id}/pagamento", vendaId).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"formaPagamento\": \"PIX\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/pdv/vendas/{id}/pagamento", vendaId).header("Idempotency-Key", CHAVE)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"formaPagamento\": \"CHEQUE\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Corpo da requisição inválido ou malformado"));
+        mockMvc.perform(post("/pdv/vendas/{id}/pagamento", vendaId).header("Idempotency-Key", CHAVE)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"valorRecebido\": -1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("formaPagamento", "valorRecebido")));
+        verifyNoInteractions(registrarPagamento);
+    }
+
+    @Test
+    void naoExisteRotaParaAlterarOuApagarVenda() throws Exception {
         mockMvc.perform(post("/pdv/vendas/{id}/receber", vendaId)).andExpect(status().isNotFound());
-        mockMvc.perform(post("/pdv/vendas/{id}/pagamento", vendaId)).andExpect(status().isNotFound());
         mockMvc.perform(put("/pdv/vendas/{id}", vendaId).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isMethodNotAllowed());
         mockMvc.perform(delete("/pdv/vendas/{id}", vendaId)).andExpect(status().isMethodNotAllowed());

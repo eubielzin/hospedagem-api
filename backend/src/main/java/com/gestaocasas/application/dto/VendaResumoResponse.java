@@ -1,5 +1,6 @@
 package com.gestaocasas.application.dto;
 
+import com.gestaocasas.domain.enums.FormaPagamento;
 import com.gestaocasas.domain.enums.StatusPagamento;
 import com.gestaocasas.domain.enums.StatusVenda;
 import com.gestaocasas.domain.enums.TipoVenda;
@@ -16,6 +17,7 @@ public record VendaResumoResponse(
         StatusPagamento pagamentoStatus,
         BigDecimal total,
         Instant criadoEm,
-        Instant canceladoEm
+        Instant canceladoEm,
+        FormaPagamento formaPagamento
 ) {
 }

@@ -2,6 +2,7 @@ package com.gestaocasas.presentation.controller;
 
 import com.gestaocasas.application.dto.ApiResponse;
 import com.gestaocasas.application.dto.CancelamentoReservaRequest;
+import com.gestaocasas.application.dto.CheckoutRequest;
 import com.gestaocasas.application.dto.CotacaoResponse;
 import com.gestaocasas.application.dto.EncerramentoRequest;
 import com.gestaocasas.application.dto.FnrhRequest;
@@ -128,9 +129,12 @@ public class ReservaController {
     }
 
     @PostMapping("/{id}/checkout")
-    @Operation(summary = "Faz o check-out", description = "Só de reservas HOSPEDADO. A UH fica SUJA (RN-07).")
-    public ResponseEntity<ApiResponse<ReservaResponse>> checkout(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.ok("Check-out realizado com sucesso", alterarStatus.checkout(id)));
+    @Operation(summary = "Faz o check-out", description = "Só de reservas HOSPEDADO. Com saldo na conta, 422 RN-05, a "
+            + "menos que autorizarPendencia seja true (fica pendenciaAutorizada). A UH fica SUJA (RN-07). Corpo opcional.")
+    public ResponseEntity<ApiResponse<ReservaResponse>> checkout(
+            @PathVariable UUID id, @RequestBody(required = false) CheckoutRequest request) {
+        boolean autorizar = request != null && Boolean.TRUE.equals(request.autorizarPendencia());
+        return ResponseEntity.ok(ApiResponse.ok("Check-out realizado com sucesso", alterarStatus.checkout(id, autorizar)));
     }
 
     @PostMapping("/{id}/cancelamento")

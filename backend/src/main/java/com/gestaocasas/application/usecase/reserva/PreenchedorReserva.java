@@ -73,6 +73,10 @@ public class PreenchedorReserva {
         exigirCapacidade(uh, request.adultos(), criancas);
         disponibilidade.verificar(uh, request.checkin(), request.checkout(), reserva.getId());
 
+        // A comissão é a do canal quando a reserva entra nele; editar outros dados não a muda.
+        if (!mesmoId(reserva.getCanal() == null ? null : reserva.getCanal().getId(), canal.getId())) {
+            reserva.setComissaoCanal(canal.getComissao());
+        }
         reserva.setImovel(uh);
         reserva.setTitular(titular);
         reserva.setCanal(canal);

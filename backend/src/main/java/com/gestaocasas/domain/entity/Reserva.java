@@ -55,6 +55,10 @@ public class Reserva {
     @Column(name = "valor_total", nullable = false, precision = 12, scale = 2)
     private BigDecimal valorTotal;
 
+    /** Comissão do canal (%) quando a reserva foi feita ou mudou de canal. */
+    @Column(name = "comissao_canal", nullable = false, precision = 5, scale = 2)
+    private BigDecimal comissaoCanal;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private StatusReserva status;

@@ -144,7 +144,7 @@ class ReservaControllerTest {
                 .andExpect(status().isOk());
 
         verify(alterarStatus).checkin(id);
-        verify(alterarStatus).checkout(id);
+        verify(alterarStatus).checkout(id, false);
         verify(encerrarReserva).cancelar(eq(id), any());
         verify(updateReserva).execute(eq(id), any());
     }
